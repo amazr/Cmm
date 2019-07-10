@@ -62,16 +62,16 @@ public:
 		}
 		//boolean
 		else if (type == getTypes().at(3)) {
-			if (value == "true" || value == "1") {
+			if (value == "true" || value == "1" || value == "t") {
 				bValue = true;
 				valueString = "true";
 			}
-			else if (value == "false" || value == "0") {
+			else if (value == "false" || value == "0" || value == "f") {
 				bValue = false;
 				valueString = "false";
 			}
 			else {
-				warnings.push_back(warnStr + " invalid value for type bol. Try true, false, 1, or 0.");
+				warnings.push_back(warnStr + " invalid value for type bol, try true/false/1/0/t/f");
 			}
 		}
 		//string
@@ -179,16 +179,16 @@ private:
 		}
 		//BOOL
 		else if (type == getTypes().at(3)) {
-			if (value == "true" || value == "1") {
+			if (value == "true" || value == "1" || value == "t") {
 				bValue = true;
 				valueString = "true";
 			}
-			else if (value == "false" || value == "0") {
+			else if (value == "false" || value == "0" || value == "f") {
 				bValue = false;
 				valueString = "false";
 			}
 			else {
-				warnings.push_back(warnStr + " invalid declaration for type bol. Try true, false, 1, or 0.");
+				warnings.push_back(warnStr + " invalid declaration for type bol, try true/false/1/0/t/f");
 			}
 		}
 		//STRING
@@ -206,6 +206,105 @@ struct line {
 	std::string literal = "";
 	int num;
 };
+
+//This function takes two vectors that make up an expressions terms and operators and returns a string of the result FOR INTEGER MATH
+std::string integerMath(std::vector<std::string> numbers, std::vector<std::string> operatorOrder, std::unordered_map<std::string, Cmmvariable>& var_map) {
+
+	int operatorCounter = 0;
+	int result = stoi(numbers.at(0));
+
+	for (int i = 1; i < numbers.size(); i++) {
+		if (operatorOrder.at(operatorCounter) == "+") {
+			result += stoi(numbers.at(i));
+		}
+		else if (operatorOrder.at(operatorCounter) == "-") {
+			result -= stoi(numbers.at(i));
+		}
+		else if (operatorOrder.at(operatorCounter) == "/") {
+			result /= stoi(numbers.at(i));
+		}
+		else if (operatorOrder.at(operatorCounter) == "*") {
+			result *= stoi(numbers.at(i));
+		}
+		else if (operatorOrder.at(operatorCounter) == "%") {
+			result %= stoi(numbers.at(i));
+		}
+		operatorCounter++;
+	}
+
+	return std::to_string(result);
+}
+
+//Function operates the same as the above function but for decimal math
+std::string decimalMath(std::vector<std::string> numbers, std::vector<std::string> operatorOrder, std::unordered_map<std::string, Cmmvariable>& var_map) {
+
+	int operatorCounter = 0;
+	double result = stod(numbers.at(0));
+
+	for (int i = 1; i < numbers.size(); i++) {
+		if (operatorOrder.at(operatorCounter) == "+") {
+			result += stod(numbers.at(i));
+		}
+		else if (operatorOrder.at(operatorCounter) == "-") {
+			result -= stod(numbers.at(i));
+		}
+		else if (operatorOrder.at(operatorCounter) == "/") {
+			result /= stod(numbers.at(i));
+		}
+		else if (operatorOrder.at(operatorCounter) == "*") {
+			result *= stod(numbers.at(i));
+		}
+		else if (operatorOrder.at(operatorCounter) == "%") {
+			warnings.push_back(warnStr + " modulus is not an acceptable operator on a dec type");
+		}
+		operatorCounter++;
+	}
+
+	return std::to_string(result);
+}
+
+std::string calculate(std::string expression, std::string type, std::unordered_map<std::string, Cmmvariable>& var_map) {
+	//If you want to add an operator you need to also add it in the integerMath and decimalMath methods
+	std::vector<std::string> operators = { "+", "-", "/", "*", "%" };
+	std::vector<std::string> operatorOrder;
+	std::vector<std::string> numbers;
+	std::string tempNumber;
+
+	//This will populate the numbers vector with each number defined as being seperated by an operator. This also populates the operatorOrder vector
+	for (int i = 0; i < expression.size(); i++) {
+		for (auto elem : operators) {
+			if (expression[i] == elem[0]) {
+
+				std::string tempOp;
+				tempOp += expression[i];
+				operatorOrder.push_back(tempOp);
+
+				numbers.push_back(tempNumber);
+				tempNumber = "";
+				i++;
+			}
+		}
+		tempNumber += expression[i];
+	}
+
+	numbers.push_back(tempNumber);
+
+	//This will search through the numbers vector to find variable names. If one is found it will replace it with its value string
+	for (auto& elem : numbers) {
+		if (var_map.find(elem) != var_map.end()) {
+			elem = var_map.at(elem).getValueString();
+		}
+	}
+
+	//FOR INTEGER MATH
+	if (type == Cmmvariable::getTypes().at(0)) {
+		return integerMath(numbers, operatorOrder, var_map);
+	}
+	//FOR DECIMAL MATH
+	else if (type == Cmmvariable::getTypes().at(1)) {
+		return decimalMath(numbers, operatorOrder, var_map);
+	}
+}
 
 //This will create a string literal if a line has one. This is to exempt it from the clear whitespace rule
 line createStrLiteral(line thisLine, std::unordered_map<std::string, Cmmvariable>& var_map) {
@@ -286,7 +385,28 @@ line removeWhitespace(line thisLine, std::unordered_map<std::string, Cmmvariable
 	return thisLine;
 }
 
-//This function will create a new variable THIS NEEDS AN ERROR CREATOR FOR INVALID VARIABLE NAMES
+//returns true if the word is considered a bad word, false if the word is ok
+bool isBadWord(std::string word) {
+
+	//If the word begins with a non-letter or a non-number
+	if (!isalpha(word[0])) {
+		if (isdigit(word[0])) {
+			if (word.size() == 1) {
+				return true;
+			}
+			return false;
+		}
+		return true;
+	}
+
+	if (word == "true" || word == "false" || word == "t" || word == "f") {
+		return true;
+	}
+
+	return false;
+}
+
+//This function will create a new variable
 void createVar(line thisLine, std::string type, std::unordered_map<std::string, Cmmvariable>& var_map) {
 
 	std::string dVarName = "";
@@ -325,10 +445,23 @@ void createVar(line thisLine, std::string type, std::unordered_map<std::string, 
 			varValue = thisLine.literal;
 		}
 
+		//The variable name was a bad word
+		if (isBadWord(varName)) {
+			warnings.push_back(warnStr + " variable name was invalid");
+			return;
+		}
+
+		//The variable name was incorrect
+		if (var_map.find(varName) != var_map.end()) {
+			warnings.push_back(warnStr + " variable already exists");
+			return;
+		}
+
 		var_map.emplace(varName, Cmmvariable(type, varValue));
 	}
 }
 
+//This will update a variables value if it needs to be
 void updateVar(line thisLine, std::unordered_map<std::string, Cmmvariable>& var_map) {
 
 	std::string varName = "";
@@ -383,20 +516,28 @@ void updateVar(line thisLine, std::unordered_map<std::string, Cmmvariable>& var_
 				var_map.at(varName).updateValue(expression);
 			}
 		}
-		//else if (type == Cmmvariable::getTypes().at(2)) {
-
-	//	}
-	//	else if (type == Cmmvariable::getTypes().at(3)) {
-
-		//}
-		//else if (type == Cmmvariable::getTypes().at(4)) {
-
-		//}
+		//FOR INTEGER AND DECIMAL
+		else if (var_map.at(varName).getType() == Cmmvariable::getTypes().at(0) || var_map.at(varName).getType() == Cmmvariable::getTypes().at(1)) {
+			if (isExpressionVar) {
+				var_map.at(varName).updateValue(var_map.at(expression).getValueString());
+			}
+			else {
+				var_map.at(varName).updateValue(calculate(expression, var_map.at(varName).getType(), var_map));
+			}
+		}
+		//FOR BOOLEAN 
+		else if (var_map.at(varName).getType() == Cmmvariable::getTypes().at(3)) {
+			if (isExpressionVar) {
+				var_map.at(varName).updateValue(var_map.at(expression).getValueString());
+			}
+			else {
+				var_map.at(varName).updateValue(expression);
+			}
+		}
 	}
 
 
 }
-
 
 //Function for reading each individual line... everything is called from here
 void readLine(line thisLine, std::unordered_map<std::string, Cmmvariable>& var_map) {
@@ -449,12 +590,6 @@ void openFile(std::string fileName, std::unordered_map<std::string, Cmmvariable>
 int main() {
 
 	std::unordered_map<std::string, Cmmvariable> var_map;
-
-
-	//for (auto elem : var_map) {
-	//	std::cout << "Name: " << elem.first << "\tValue: " << elem.second.getValueString() << std::endl;
-	//}
-
 
 	std::string fileName = "";
 	std::cout << "Welcome to C-- v1" << std::endl << "Enter file name to run" << std::endl;
