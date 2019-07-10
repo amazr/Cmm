@@ -8,6 +8,8 @@
 std::vector<std::string> warnings;
 std::string warnStr;
 
+//An object of this class represents a variable in the program. Meant to be stored in a umap called var_map
+//contains a static vector of datatypes
 class Cmmvariable {
 public:
 	//With a value
@@ -21,6 +23,63 @@ public:
 		setValueStringDefault();
 	}
 
+	void updateValue(std::string value) {
+		//Integer
+		if (type == getTypes().at(0)) {
+			try {
+				iValue = stoi(value);
+				valueString = std::to_string(iValue);
+			}
+			catch (std::out_of_range) {
+				warnings.push_back(warnStr + " value out of range");
+			}
+			catch (std::invalid_argument) {
+				warnings.push_back(warnStr + " invalid value");
+			}
+		}
+		//decimal
+		else if (type == getTypes().at(1)) {
+			try {
+				dValue = stod(value);
+				valueString = std::to_string(dValue);
+				setPrecision();
+			}
+			catch (std::out_of_range) {
+				warnings.push_back(warnStr + " value out of range");
+			}
+			catch (std::invalid_argument) {
+				warnings.push_back(warnStr + " invalid value");
+			}
+		}
+		//char
+		else if (type == getTypes().at(2)) {
+			valueString = "";
+			cValue = value[0];
+			valueString += cValue;
+			if (value.size() > 1) {
+				warnings.push_back(warnStr + " value for char more than one character");
+			}
+		}
+		//boolean
+		else if (type == getTypes().at(3)) {
+			if (value == "true" || value == "1") {
+				bValue = true;
+				valueString = "true";
+			}
+			else if (value == "false" || value == "0") {
+				bValue = false;
+				valueString = "false";
+			}
+			else {
+				warnings.push_back(warnStr + " invalid value for type bol. Try true, false, 1, or 0.");
+			}
+		}
+		//string
+		else if (type == getTypes().at(4)) {
+			sValue = value;
+			valueString = sValue;
+		}
+	}
 	
 	std::string getValueString() {
 		return valueString;
@@ -95,7 +154,6 @@ private:
 			catch (std::invalid_argument) {
 				warnings.push_back(warnStr + " invalid declaration for type int");
 			}
-
 		}
 		//DECIMAL
 		else if (type == getTypes().at(1)) {
@@ -116,7 +174,7 @@ private:
 			cValue = value[0];
 			valueString += cValue;
 			if (value.size() > 1) {
-				//Create warning
+				warnings.push_back(warnStr + " value for char more than one character");
 			}
 		}
 		//BOOL
@@ -228,7 +286,7 @@ line removeWhitespace(line thisLine, std::unordered_map<std::string, Cmmvariable
 	return thisLine;
 }
 
-//This function will create a new variable
+//This function will create a new variable THIS NEEDS AN ERROR CREATOR FOR INVALID VARIABLE NAMES
 void createVar(line thisLine, std::string type, std::unordered_map<std::string, Cmmvariable>& var_map) {
 
 	std::string dVarName = "";
@@ -258,7 +316,12 @@ void createVar(line thisLine, std::string type, std::unordered_map<std::string, 
 			varValue += thisLine.lineStr[i];
 		}
 
-		if (type == "str") {
+		//if the value is another variable than set this variable to that variable
+		if (var_map.find(varValue) != var_map.end()) {
+			varValue = var_map.at(varValue).getValueString();
+		}
+		//if the type is a string set the value to the string literal for that line
+		else if (type == "str") {
 			varValue = thisLine.literal;
 		}
 
@@ -266,11 +329,88 @@ void createVar(line thisLine, std::string type, std::unordered_map<std::string, 
 	}
 }
 
+void updateVar(line thisLine, std::unordered_map<std::string, Cmmvariable>& var_map) {
+
+	std::string varName = "";
+	std::string expression = "";
+
+	bool doesVarExist = false;
+	bool isExpressionVar = false;
+
+	//If an equal sign was found set the left to varname and the right to expression
+	size_t found = thisLine.lineStr.find("=");
+	if (found != std::string::npos) {
+
+		for (int i = 0; i < found; i++) {
+			varName += thisLine.lineStr[i];
+		}
+
+		for (int i = found + 1; i < thisLine.lineStr.size(); i++) {
+			expression += thisLine.lineStr[i];
+		}
+
+	}
+
+	//make sure that varname exists in the map and then set the bool to true. if it doesnt create a warning
+	if (var_map.find(varName) != var_map.end()) {
+		doesVarExist = true;
+	}
+	else {
+		warnings.push_back(warnStr + " " + varName + " is not an existing variable");
+	}
+
+	//if the expression is just a single variable
+	if (var_map.find(expression) != var_map.end()) {
+		isExpressionVar = true;
+	}
+
+	//FOR STRING
+	if (doesVarExist) {
+		if (var_map.at(varName).getType() == Cmmvariable::getTypes().at(4)) {
+			if (isExpressionVar) {
+				var_map.at(varName).updateValue(var_map.at(expression).getValueString());
+			}
+			else {
+				var_map.at(varName).updateValue(thisLine.literal);
+			}
+		}
+		//FOR CHAR
+		else if (var_map.at(varName).getType() == Cmmvariable::getTypes().at(2)) {
+			if (isExpressionVar) {
+				var_map.at(varName).updateValue(var_map.at(expression).getValueString());
+			}
+			else {
+				var_map.at(varName).updateValue(expression);
+			}
+		}
+		//else if (type == Cmmvariable::getTypes().at(2)) {
+
+	//	}
+	//	else if (type == Cmmvariable::getTypes().at(3)) {
+
+		//}
+		//else if (type == Cmmvariable::getTypes().at(4)) {
+
+		//}
+	}
+
+
+}
+
 
 //Function for reading each individual line... everything is called from here
 void readLine(line thisLine, std::unordered_map<std::string, Cmmvariable>& var_map) {
 	warnStr = "WARNING[line " + std::to_string(thisLine.num) + "]:";
+
+	bool wasVarCreated = false;
+
+	//clears the whitespace and creates literals
 	thisLine = removeWhitespace(thisLine, var_map);
+
+	//If the line is blank do nothing
+	if (thisLine.lineStr.size() == 0) {
+		return;
+	}
 
 	//This will check if a variable is to be created on this line and do that
 	std::string type = "";
@@ -280,8 +420,18 @@ void readLine(line thisLine, std::unordered_map<std::string, Cmmvariable>& var_m
 	for (auto elem : Cmmvariable::getTypes()) {
 		if (type == elem) {
 			createVar(thisLine, type, var_map);
+			wasVarCreated = true;
 		}
 	}
+
+	//This will check for keywords
+	//TODO
+
+	//This will update a variable
+	if (!wasVarCreated) {
+		updateVar(thisLine, var_map);
+	}
+	
 }
 
 //this function opens a cmm file to be read
