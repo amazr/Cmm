@@ -234,15 +234,21 @@ public:
 			warnings.push_back(warnStr + " attempted to read to a variable that does not exist");
 		}
 	}
-
+	
+	//This function returns true if an if statement evaluated to true; else it returns false
 	static bool conditionalIF(std::string line, std::unordered_map<std::string, Cmmvariable>& var_map) {
 
 		std::string leftValue, rightValue;
 		bool doingLeftValue = true;
+		bool notEqual = false;
 
 		//This loop will set the left and the right values
 		for (int i = 2; i < line.size(); i++) {
 			if (line[i] == '=') {
+				if (line[i - 1] == '!') {
+					notEqual = true;
+					leftValue.pop_back();
+				}
 				doingLeftValue = false;
 				i++;
 			}
@@ -254,6 +260,7 @@ public:
 			}
 		}
 
+		//this does some stuff if its only a single value present...	THIS NEEDS SOME EXTRA WORK FOR SURE
 		if (doingLeftValue) {
 			if (var_map.find(leftValue) != var_map.end()) {
 				leftValue = var_map.at(leftValue).getValueString();
@@ -275,13 +282,19 @@ public:
 			rightValue = var_map.at(rightValue).getValueString();
 		}
 
+		//This is the main stuff right here... returning true if the stuffs TRUE
 		if (leftValue == rightValue) {
+			if (notEqual) {
+				return false;
+			}
 			return true;
 		}
 		else {
+			if (notEqual) {
+				return true;
+			}
 			return false;
 		}
-
 	}
 
 	//This function will return a string vector of all the implemented keywords
