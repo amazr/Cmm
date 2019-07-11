@@ -13,14 +13,16 @@ std::string warnStr;
 class Cmmvariable {
 public:
 	//With a value
-	Cmmvariable(std::string t, std::string value) {
+	Cmmvariable(std::string t, std::string value, int scope) {
 		type = t;
 		setValue(value);
+		this->scope = scope;
 	}
 	//If declared with no value
-	Cmmvariable(std::string t) {
+	Cmmvariable(std::string t, int scope) {
 		type = t;
 		setValueStringDefault();
+		this->scope = scope;
 	}
 
 	void updateValue(std::string value) {
@@ -100,8 +102,13 @@ public:
 		return types;
 	}
 
+	int getScope() {
+		return scope;
+	}
+
 
 private:
+	int scope;
 	std::string type;
 	int iValue = 0;
 	double dValue = 0;
@@ -200,11 +207,106 @@ private:
 	}
 };
 
+//This class is meant to be static and used as a container for all of the keyword functions
+class Keyword {
+public:
+
+	//This function expects the line.literal data
+	static void display(std::string toDisplay) {
+		std::cout << toDisplay;
+	}
+
+	//This function reads the next line and stores the lines value into that variable
+	static void read(std::string lineStr, std::unordered_map<std::string, Cmmvariable>& var_map) {
+
+		std::string varName;
+		for (int i = 4; i < lineStr.size(); i++) {
+			varName += lineStr[i];
+		}
+
+		if (var_map.find(varName) != var_map.end()) {
+			std::string temp;
+			std::cin >> temp;
+
+			var_map.at(varName).updateValue(temp);
+		}
+		else {
+			warnings.push_back(warnStr + " attempted to read to a variable that does not exist");
+		}
+	}
+
+	static bool conditionalIF(std::string line, std::unordered_map<std::string, Cmmvariable>& var_map) {
+
+		std::string leftValue, rightValue;
+		bool doingLeftValue = true;
+
+		//This loop will set the left and the right values
+		for (int i = 2; i < line.size(); i++) {
+			if (line[i] == '=') {
+				doingLeftValue = false;
+				i++;
+			}
+			if (doingLeftValue) {
+				leftValue += line[i];
+			}
+			else {
+				rightValue += line[i];
+			}
+		}
+
+		if (doingLeftValue) {
+			if (var_map.find(leftValue) != var_map.end()) {
+				leftValue = var_map.at(leftValue).getValueString();
+				if (leftValue == "true") {
+					return true;
+				}
+				else if (leftValue == "false") {
+					return false;
+				}
+			}
+		}
+
+		//If either of the values are actually variables
+		if (var_map.find(leftValue) != var_map.end()) {
+			leftValue = var_map.at(leftValue).getValueString();
+		}
+
+		if (var_map.find(rightValue) != var_map.end()) {
+			rightValue = var_map.at(rightValue).getValueString();
+		}
+
+		if (leftValue == rightValue) {
+			return true;
+		}
+		else {
+			return false;
+		}
+
+	}
+
+	//This function will return a string vector of all the implemented keywords
+	static std::vector<std::string> getKeywords() {
+		return createKeywords();
+	}
+
+private:
+
+	//This function will store all of the keywords
+	static std::vector<std::string> createKeywords() {
+		std::vector<std::string> keywords;
+		keywords.push_back("display");
+		keywords.push_back("read");
+		keywords.push_back("if");
+		return keywords;
+	}
+};
+
 //Struct for each individual line in the cmm file
 struct line {
 	std::string lineStr;
 	std::string literal = "";
 	int num;
+	int scopeLevel = 0;
 };
 
 //This function takes two vectors that make up an expressions terms and operators and returns a string of the result FOR INTEGER MATH
@@ -407,7 +509,7 @@ bool isBadWord(std::string word) {
 }
 
 //This function will create a new variable
-void createVar(line thisLine, std::string type, std::unordered_map<std::string, Cmmvariable>& var_map) {
+void createVar(line thisLine, std::string type, std::unordered_map<std::string, Cmmvariable>& var_map, int scope) {
 
 	std::string dVarName = "";
 	std::string varName = "";
@@ -427,7 +529,7 @@ void createVar(line thisLine, std::string type, std::unordered_map<std::string, 
 	}
 
 	if (defaultDec) {
-		var_map.emplace(dVarName, Cmmvariable(type));
+		var_map.emplace(dVarName, Cmmvariable(type, scope));
 	}
 	else {
 
@@ -451,13 +553,13 @@ void createVar(line thisLine, std::string type, std::unordered_map<std::string, 
 			return;
 		}
 
-		//The variable name was incorrect
+		//The variable name already exists
 		if (var_map.find(varName) != var_map.end()) {
 			warnings.push_back(warnStr + " variable already exists");
 			return;
 		}
 
-		var_map.emplace(varName, Cmmvariable(type, varValue));
+		var_map.emplace(varName, Cmmvariable(type, varValue, scope));
 	}
 }
 
@@ -539,11 +641,54 @@ void updateVar(line thisLine, std::unordered_map<std::string, Cmmvariable>& var_
 
 }
 
+int checkForKeyWords(line thisLine, std::unordered_map<std::string, Cmmvariable>& var_map) {
+
+	//CODE: 1->display 2->read 3->if
+	std::vector<std::string> keywords = Keyword::getKeywords();
+
+	for (auto elem : keywords) {
+		size_t found = thisLine.lineStr.find(elem);
+		if (found != std::string::npos) {
+			//DISPLAY
+			if (elem == keywords.at(0)) {
+				Keyword::display(thisLine.literal);
+				return 1;
+			}
+			else if (elem == keywords.at(1)) {
+				Keyword::read(thisLine.lineStr, var_map);
+				return 1;
+			}
+			else if (elem == keywords.at(2)) {
+				if (Keyword::conditionalIF(thisLine.lineStr, var_map)) {
+					return 2;
+				}
+				else {
+					return 1;
+				}
+			}
+		}
+	}
+
+	return false;
+}
+
 //Function for reading each individual line... everything is called from here
-void readLine(line thisLine, std::unordered_map<std::string, Cmmvariable>& var_map) {
+void readLine(line thisLine, std::unordered_map<std::string, Cmmvariable>& var_map, int& scope) {
 	warnStr = "WARNING[line " + std::to_string(thisLine.num) + "]:";
 
 	bool wasVarCreated = false;
+	
+	int keywordCode = 0; //0->no keyword found     1->keyword found     2->needs to go lower in scope
+
+	//When the program is passed the conditional block it will set the scope level back to 0
+	if (thisLine.lineStr[0] != '\t') {
+		scope = 0;
+		for (auto elem : var_map) {
+			if (elem.second.getScope() == 1) {
+				var_map.erase(elem.first);
+			}
+		}
+	}
 
 	//clears the whitespace and creates literals
 	thisLine = removeWhitespace(thisLine, var_map);
@@ -553,23 +698,35 @@ void readLine(line thisLine, std::unordered_map<std::string, Cmmvariable>& var_m
 		return;
 	}
 
+	//This makes sure that a conditionals block is skipped if the conditional did not return true
+	if (thisLine.lineStr[0] == '\t' && scope == 0) {
+		return;
+	}
+
 	//This will check if a variable is to be created on this line and do that
+	if (scope == 1) {
+		thisLine.lineStr.erase(thisLine.lineStr.begin());
+	}
 	std::string type = "";
 	for (int i = 0; i < 3; i++) {
 		type += thisLine.lineStr[i];
 	}
 	for (auto elem : Cmmvariable::getTypes()) {
 		if (type == elem) {
-			createVar(thisLine, type, var_map);
+			createVar(thisLine, type, var_map, scope);
 			wasVarCreated = true;
 		}
 	}
 
-	//This will check for keywords
-	//TODO
+	//This function will check for a keyword and execute its stuff
+	keywordCode = checkForKeyWords(thisLine, var_map);
+
+	if (keywordCode == 2) {
+		scope = 1;
+	}
 
 	//This will update a variable
-	if (!wasVarCreated) {
+	if (!wasVarCreated && keywordCode == 0) {
 		updateVar(thisLine, var_map);
 	}
 	
@@ -579,10 +736,13 @@ void readLine(line thisLine, std::unordered_map<std::string, Cmmvariable>& var_m
 void openFile(std::string fileName, std::unordered_map<std::string, Cmmvariable>& var_map) {
 	std::ifstream ifs(fileName);
 
+	//This dictates the scope of something. 0 would be global scope and 1 would be inside a conditional or loop block
+	int scope = 0;
+
 	line thisLine;
 	thisLine.num = 1;
 	while (getline(ifs, thisLine.lineStr)) {
-		readLine(thisLine, var_map);
+		readLine(thisLine, var_map, scope);
 		thisLine.num++;
 	}
 }
@@ -592,18 +752,20 @@ int main() {
 	std::unordered_map<std::string, Cmmvariable> var_map;
 
 	std::string fileName = "";
-	std::cout << "Welcome to C-- v1" << std::endl << "Enter file name to run" << std::endl;
+	std::cout << "Welcome to C-- v2" << std::endl << "Enter file name to run" << std::endl;
 	std::cin >> fileName;
 	std::cout << "\n\n";
 	openFile(fileName, var_map);
 
-		std::cout << "\n\n";
+	//This will display all created warnings to the terminal at the end of the program
+	std::cout << "\n\n";
 	for (auto elem : warnings) {
 		std::cout << elem << std::endl;
 	}
 
-	for (auto elem : var_map) {
-		std::cout << "Name: " << elem.first << "\tType: " << elem.second.getType() << "\tValue: " << elem.second.getValueString() << std::endl;
-	}
+	//This section is for debugging. If uncommented it will display all the variables, name/type/value to the terminal
+	//for (auto elem : var_map) {
+	//	std::cout << "Name: " << elem.first << "\tType: " << elem.second.getType() << "\tValue: " << elem.second.getValueString() << std::endl;
+	//}
 
 }
