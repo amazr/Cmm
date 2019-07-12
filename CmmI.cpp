@@ -6,6 +6,7 @@
 #include <utility>
 
 std::vector<std::string> warnings;
+//warnings.push_back(warnStr + " whatever you need the warning to say");
 std::string warnStr;
 
 //An object of this class represents a variable in the program. Meant to be stored in a umap called var_map
@@ -276,10 +277,12 @@ public:
 		//If either of the values are actually variables
 		if (var_map.find(leftValue) != var_map.end()) {
 			leftValue = var_map.at(leftValue).getValueString();
+			leftValue = wholeDecChecker(leftValue, var_map);
 		}
 
 		if (var_map.find(rightValue) != var_map.end()) {
 			rightValue = var_map.at(rightValue).getValueString();
+			rightValue = wholeDecChecker(rightValue, var_map);
 		}
 
 		//This is the main stuff right here... returning true if the stuffs TRUE
@@ -297,6 +300,80 @@ public:
 		}
 	}
 
+	//This is the function for doing loops			THIS IS A WORK IN PROGRESS
+	static bool doLoop(std::string line, std::unordered_map<std::string, Cmmvariable>& var_map) {
+		//loop from 0-12: i++ will do a for loop
+		//loop while condition: i++ will do a while loop... i is a var for a counter
+
+		std::string forLoop = "from";
+		std::string whileLoop = "while";
+		std::string loopType;
+		for (int i = 4; i < line.size(); i++) {
+			loopType += line[i];
+			if (loopType == forLoop) {
+				break;
+			}
+			else if (loopType == whileLoop) {
+				break;
+			}
+		}
+
+	
+		if (loopType == forLoop) {
+			std::string rangeFloor, rangeCeil;
+			int maxNumberOfLoops = 0;
+			int loopIteratorLocation = 0;
+			std::string loopIteratorName = "";
+			bool isFloor = true;
+			//Get the floor and ceiling for the loop range
+			for (int i = 8; i < line.size(); i++) {
+				if (line[i] == ':') {
+					loopIteratorLocation = i + 1;
+					break;
+				}
+				if (line[i] == '-') {
+					isFloor = false;
+				}
+				if (isFloor && line[i] != '-') {
+					rangeFloor += line[i];
+				}
+				else if (!isFloor && line[i] != '-') {
+					rangeCeil += line[i];
+				}
+
+			}
+
+			maxNumberOfLoops = (stoi(rangeCeil) - stoi(rangeFloor)) + 1;
+
+			if (maxNumberOfLoops <= 0) {
+				warnings.push_back(warnStr + " Loop range was invalid. It must run atleast one time.");
+				return false;
+			}
+
+			//Get the iterator name for the loop
+			int expressionLocation = 0;
+			std::string expression = "";
+			for (int i = loopIteratorLocation; i < line.size(); i++) {
+				if (line[i] == '=') {
+					expressionLocation = i + 1;
+					break;
+				}
+				loopIteratorName += line[i];
+			}
+
+			//This creates the expression
+			for (int i = expressionLocation; i < line.size(); i++) {
+				expression += line[i];
+			}
+
+			
+		}
+		//For while loops
+		else if (loopType == whileLoop) {
+			std::cout << "while loop detected, feature not coded yet" << std::endl;
+		}
+	}
+
 	//This function will return a string vector of all the implemented keywords
 	static std::vector<std::string> getKeywords() {
 		return createKeywords();
@@ -310,7 +387,29 @@ private:
 		keywords.push_back("display");
 		keywords.push_back("read");
 		keywords.push_back("if");
+		keywords.push_back("loop");
 		return keywords;
+	}
+
+	//If the dec is a whole number this will return it completed whole-ified to compare its value
+	static std::string wholeDecChecker(std::string leftValue, std::unordered_map<std::string, Cmmvariable>& var_map) {
+			bool isWhole = true;
+			bool afterDot = false;
+			for (int i = 0; i < leftValue.size(); i++) {
+				if (afterDot) {
+					if (leftValue[i] != '0') {
+						isWhole = false;
+						break;
+					}
+				}
+				if (leftValue[i] == '.') {
+					afterDot = true;
+				}
+			}
+			if (isWhole) {
+				leftValue = std::to_string(stoi(leftValue));
+			}
+				return leftValue;
 	}
 };
 
@@ -654,6 +753,7 @@ void updateVar(line thisLine, std::unordered_map<std::string, Cmmvariable>& var_
 
 }
 
+//This function checks for keywords and calls the required functions for them to work
 int checkForKeyWords(line thisLine, std::unordered_map<std::string, Cmmvariable>& var_map) {
 
 	//CODE: 1->display 2->read 3->if
@@ -667,12 +767,23 @@ int checkForKeyWords(line thisLine, std::unordered_map<std::string, Cmmvariable>
 				Keyword::display(thisLine.literal);
 				return 1;
 			}
+			//READ
 			else if (elem == keywords.at(1)) {
 				Keyword::read(thisLine.lineStr, var_map);
 				return 1;
 			}
+			//IF 
 			else if (elem == keywords.at(2)) {
 				if (Keyword::conditionalIF(thisLine.lineStr, var_map)) {
+					return 2;
+				}
+				else {
+					return 1;
+				}
+			}
+			//LOOP
+			else if (elem == keywords.at(3)) {
+				if (Keyword::doLoop(thisLine.lineStr, var_map)) {
 					return 2;
 				}
 				else {
@@ -686,11 +797,10 @@ int checkForKeyWords(line thisLine, std::unordered_map<std::string, Cmmvariable>
 }
 
 //Function for reading each individual line... everything is called from here
-void readLine(line thisLine, std::unordered_map<std::string, Cmmvariable>& var_map, int& scope) {
+void readLine(std::ifstream& ifs, line thisLine, std::unordered_map<std::string, Cmmvariable>& var_map, int& scope) {
 	warnStr = "WARNING[line " + std::to_string(thisLine.num) + "]:";
-
 	bool wasVarCreated = false;
-	
+
 	int keywordCode = 0; //0->no keyword found     1->keyword found     2->needs to go lower in scope
 
 	//When the program is passed the conditional block it will set the scope level back to 0
@@ -755,7 +865,7 @@ void openFile(std::string fileName, std::unordered_map<std::string, Cmmvariable>
 	line thisLine;
 	thisLine.num = 1;
 	while (getline(ifs, thisLine.lineStr)) {
-		readLine(thisLine, var_map, scope);
+		readLine(ifs, thisLine, var_map, scope);
 		thisLine.num++;
 	}
 }
