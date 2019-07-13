@@ -477,6 +477,7 @@ std::string decimalMath(std::vector<std::string> numbers, std::vector<std::strin
 	return std::to_string(result);
 }
 
+//This function takes an expression sans the '=' and returns a string that is equal to the result
 std::string calculate(std::string expression, std::string type, std::unordered_map<std::string, Cmmvariable>& var_map) {
 	//If you want to add an operator you need to also add it in the integerMath and decimalMath methods
 	std::vector<std::string> operators = { "+", "-", "/", "*", "%" };
@@ -799,6 +800,9 @@ int checkForKeyWords(line thisLine, std::unordered_map<std::string, Cmmvariable>
 //Function for reading each individual line... everything is called from here
 void readLine(std::ifstream& ifs, line thisLine, std::unordered_map<std::string, Cmmvariable>& var_map, int& scope) {
 	warnStr = "WARNING[line " + std::to_string(thisLine.num) + "]:";
+	//make an adjustment where line thisLine is a vector of lines passed in by open file... open file will actually read all the lines and store them in a vector
+	//this will allow looping and all that other cool stuff
+
 	bool wasVarCreated = false;
 
 	int keywordCode = 0; //0->no keyword found     1->keyword found     2->needs to go lower in scope
