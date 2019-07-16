@@ -301,7 +301,7 @@ public:
 	}
 
 	//This is the function for doing loops			THIS IS A WORK IN PROGRESS
-	static bool doLoop(std::string line, std::unordered_map<std::string, Cmmvariable>& var_map) {
+	static Loop doLoop(std::string line, std::unordered_map<std::string, Cmmvariable>& var_map) {
 		//loop from 0-12: i++ will do a for loop
 		//loop while condition: i++ will do a while loop... i is a var for a counter
 
@@ -309,17 +309,18 @@ public:
 		std::string whileLoop = "while";
 		std::string loopType;
 		for (int i = 4; i < line.size(); i++) {
-			loopType += line[i];
-			if (loopType == forLoop) {
+			thisLoop.loopType += line[i];
+			if (thisLoop.loopType == forLoop) {
 				break;
 			}
-			else if (loopType == whileLoop) {
+			else if (thisLoop.loopType == whileLoop) {
 				break;
 			}
 		}
 
 	
-		if (loopType == forLoop) {
+		if (thisLoop.loopType == forLoop) {
+			thisLoop.doingLoop = true;
 			std::string rangeFloor, rangeCeil;
 			int maxNumberOfLoops = 0;
 			int loopIteratorLocation = 0;
@@ -344,34 +345,46 @@ public:
 			}
 
 			maxNumberOfLoops = (stoi(rangeCeil) - stoi(rangeFloor)) + 1;
+			thisLoop.begin = rangeFloor;
+			thisLoop.end = rangeCeil;
+			thisLoop.numberOfLoops = maxNumberOfLoops;
 
 			if (maxNumberOfLoops <= 0) {
 				warnings.push_back(warnStr + " Loop range was invalid. It must run atleast one time.");
-				return false;
+				return thisLoop;
 			}
 
 			//Get the iterator name for the loop
 			int expressionLocation = 0;
 			std::string expression = "";
 			for (int i = loopIteratorLocation; i < line.size(); i++) {
-				if (line[i] == '=') {
-					expressionLocation = i + 1;
+				if (line[i] == '+' || line[i] == '-') {
+					expressionLocation = i;
 					break;
 				}
 				loopIteratorName += line[i];
 			}
+
 
 			//This creates the expression
 			for (int i = expressionLocation; i < line.size(); i++) {
 				expression += line[i];
 			}
 
+			thisLoop.iterator = loopIteratorName;
+			thisLoop.expression = expression;
 			
 		}
 		//For while loops
 		else if (loopType == whileLoop) {
 			std::cout << "while loop detected, feature not coded yet" << std::endl;
 		}
+
+		return thisLoop;
+	}
+
+	static Loop getLoop() {
+		return thisLoop;
 	}
 
 	//This function will return a string vector of all the implemented keywords
@@ -390,6 +403,8 @@ private:
 		keywords.push_back("loop");
 		return keywords;
 	}
+
+	static Loop thisLoop;
 
 	//If the dec is a whole number this will return it completed whole-ified to compare its value
 	static std::string wholeDecChecker(std::string leftValue, std::unordered_map<std::string, Cmmvariable>& var_map) {
@@ -418,7 +433,19 @@ struct line {
 	std::string lineStr;
 	std::string literal = "";
 	int num;
-	int scopeLevel = 0;
+	int scope = 0;
+};
+
+struct Loop {
+	bool doingLoop = false;
+	int begin = 0;
+	int end = 0;
+	int lineBegin = 0;
+	int lineEnd = 0;
+	int numberOfLoops = 0;
+	std::string iterator = "i";
+	std::string expression = "++";
+	std::string loopType = "";
 };
 
 //This function takes two vectors that make up an expressions terms and operators and returns a string of the result FOR INTEGER MATH
@@ -592,7 +619,7 @@ line removeWhitespace(line thisLine, std::unordered_map<std::string, Cmmvariable
 	thisLine = createStrLiteral(thisLine, var_map);
 
 	for (int i = 0; i < thisLine.lineStr.size(); i++) {
-		if (thisLine.lineStr[i] == ' ') {
+		if (thisLine.lineStr[i] == ' ' || thisLine.lineStr[i] == '\t') {
 			thisLine.lineStr.erase(thisLine.lineStr.begin() + i);
 		}
 	}
@@ -784,8 +811,8 @@ int checkForKeyWords(line thisLine, std::unordered_map<std::string, Cmmvariable>
 			}
 			//LOOP
 			else if (elem == keywords.at(3)) {
-				if (Keyword::doLoop(thisLine.lineStr, var_map)) {
-					return 2;
+				if (Keyword::doLoop(thisLine.lineStr, var_map).doingLoop) {
+					return 3;
 				}
 				else {
 					return 1;
@@ -797,8 +824,8 @@ int checkForKeyWords(line thisLine, std::unordered_map<std::string, Cmmvariable>
 	return false;
 }
 
-//Function for reading each individual line... everything is called from here
-void readLine(std::ifstream& ifs, line thisLine, std::unordered_map<std::string, Cmmvariable>& var_map, int& scope) {
+//Function for reading each individual line... everything is called from here	THIS IS DECREPT
+/*void readLine(line thisLine, std::unordered_map<std::string, Cmmvariable>& var_map, int& scope) {
 	warnStr = "WARNING[line " + std::to_string(thisLine.num) + "]:";
 	//make an adjustment where line thisLine is a vector of lines passed in by open file... open file will actually read all the lines and store them in a vector
 	//this will allow looping and all that other cool stuff
@@ -857,21 +884,128 @@ void readLine(std::ifstream& ifs, line thisLine, std::unordered_map<std::string,
 		updateVar(thisLine, var_map);
 	}
 	
+}*/
+
+void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariable>& var_map) {
+	//This controls whether the program is currently running
+	bool running = true;
+	bool inLoop = false;
+	//this is a data structure for looping
+	Loop loop;
+	//Line num is the access value for the lines vector 
+	int lineNum = 0;
+	//This int is what level the line has access to. If a conditional evaluates true, the program would gain a level of access
+	int access = 0;
+
+	do {
+
+		//This will determine the scope of the line and set the lines vector scope 
+		int newScope = 0;
+		while (lines.at(lineNum).lineStr[newScope] == '\t') {
+			newScope++;
+		}
+		lines.at(lineNum).scope = newScope;
+		if (access > lines.at(lineNum).scope) {
+			access = newScope;
+		}
+
+		//If the line is blank OR if the program does not have access to something at this scope then skip the line
+		if (lines.at(lineNum).lineStr.size() == 0 || access < lines.at(lineNum).scope) {
+			//Increase the lineNum and if its equal to the size of the array then break the loop
+			lineNum++;
+			if (lineNum == lines.size()) {
+				return;
+			}
+			continue;
+		}
+
+		if (loop.doingLoop) {
+			std::cout << "startV: " << loop.begin << " endV: " << loop.end << " iterator: " << loop.iterator << std::end;
+			std::cout << "startL: " << loop.lineBegin << " endL: " << loop.lineEnd << std::endl;
+			//if (var_map.at(loop.iterator).getValueString() == st) TO DO 
+		}
+
+		//std::cout << "scope: " << lines.at(lineNum).scope << " access: " << access << " num: " << lineNum << std::endl;
+
+		//String for warnings
+		warnStr = "WARNING[line " + std::to_string(lineNum) + "]:";
+
+		//This is a bool to check if a var was created on this line, used later
+		bool wasVarCreated = false;
+
+		//A code for the return values of certain keywords
+		int keywordCode = 0; //0->no keyword found     1->keyword found     2->conditional code		3->loop code
+
+		//clears the whitespace and creates literals
+		lines.at(lineNum) = removeWhitespace(lines.at(lineNum), var_map);	
+
+		//This will check if a var is being created on this line, and then create the variable storing it in var_map
+		std::string type = "";
+		for (int i = 0; i < 3; i++) {
+			type += lines.at(lineNum).lineStr[i];
+		}
+		for (auto elem : Cmmvariable::getTypes()) {
+			if (type == elem) {
+				createVar(lines.at(lineNum), type, var_map, lines.at(lineNum).scope);
+				wasVarCreated = true;
+			}
+		}
+
+		//This function will check for a keyword and execute its stuff
+		keywordCode = checkForKeyWords(lines.at(lineNum), var_map);
+
+		//If the code was 2 up the access
+		if (keywordCode >= 2) {
+			access++;
+			if (keywordCode == 3) {
+				loop = Keyword::getLoop();
+				loop.lineBegin = lineNum + 1;
+			}
+		}
+
+		//This will update a variable
+		if (!wasVarCreated && keywordCode == 0) {
+			updateVar(lines.at(lineNum), var_map);
+		}
+
+		//This increments the line vector 
+		lineNum++;
+
+		//If the program has read the final line then terminate the readline loop
+		if (lineNum == lines.size()) {
+			running = false;
+		}
+
+	} while (running);
 }
+
 
 //this function opens a cmm file to be read
 void openFile(std::string fileName, std::unordered_map<std::string, Cmmvariable>& var_map) {
 	std::ifstream ifs(fileName);
+	std::vector<line> lines;
 
 	//This dictates the scope of something. 0 would be global scope and 1 would be inside a conditional or loop block
 	int scope = 0;
 
-	line thisLine;
-	thisLine.num = 1;
-	while (getline(ifs, thisLine.lineStr)) {
-		readLine(ifs, thisLine, var_map, scope);
-		thisLine.num++;
+	//line thisLine;
+	//thisLine.num = 1;
+	//while (getline(ifs, thisLine.lineStr)) {
+
+		//readLine(ifs, thisLine, var_map, scope);
+		//thisLine.num++;
+	//}
+
+	//This is the WIP for the new line system
+
+	line newLine;
+	while (getline(ifs, newLine.lineStr)) {
+		lines.push_back(newLine);
 	}
+
+	readLine(lines, var_map);
+
+
 }
 
 int main() {
