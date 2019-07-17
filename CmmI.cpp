@@ -9,6 +9,30 @@ std::vector<std::string> warnings;
 //warnings.push_back(warnStr + " whatever you need the warning to say");
 std::string warnStr;
 
+//Struct for each individual line in the cmm file
+struct line {
+	std::string lineStr;
+	std::string literal = "";
+	std::vector<int> varNameLocations;
+	std::vector<std::string> vars;
+	int num;
+	int scope = -1;
+};
+
+//Struct that stores information about a loop
+struct Loop {
+	bool doingLoop = false;
+	int begin = 0;
+	int end = 0;
+	int lineBegin = 0;
+	int lineEnd = 0;
+	int numberOfLoops = 0;
+	int loopScope = 0;
+	std::string iterator = "i";
+	std::string expression;
+	std::string loopType = "";
+};
+
 //An object of this class represents a variable in the program. Meant to be stored in a umap called var_map
 //contains a static vector of datatypes
 class Cmmvariable {
@@ -212,9 +236,19 @@ private:
 class Keyword {
 public:
 
-	//This function expects the line.literal data
-	static void display(std::string toDisplay) {
-		std::cout << toDisplay;
+	//This function expects a line and var_map. The literal stores variable names, not their value
+	static void display(line thisLine, std::unordered_map<std::string, Cmmvariable> var_map) {
+
+		std::string tempVarName = "";
+		bool gettingVarName = false;
+		int varStartLocation, varStrSize;
+
+		//Searches through the var location and var name vectors in the line struct and inserts them into the literal
+		for (int i = 0; i < thisLine.varNameLocations.size(); i++ ) {
+			thisLine.literal.insert(thisLine.varNameLocations.at(i), var_map.at(thisLine.vars.at(i)).getValueString());
+		}
+
+		std::cout << thisLine.literal;
 	}
 
 	//This function reads the next line and stores the lines value into that variable
@@ -300,27 +334,43 @@ public:
 		}
 	}
 
-	//This is the function for doing loops			THIS IS A WORK IN PROGRESS
-	static Loop doLoop(std::string line, std::unordered_map<std::string, Cmmvariable>& var_map) {
+	//This will check to see if a line is going to be a loop
+	static bool checkLoop(std::string line) {
+		std::string thisShouldBeLoop;
+		for (int i = 0; i < 4; i++) {
+			thisShouldBeLoop += line[i];
+		}
+
+		if (thisShouldBeLoop == "loop") {
+			return true;
+		}
+		else {
+			return false;
+		}
+	}
+
+	//This is the function for doing loops
+	static Loop startLoop(std::string line, std::unordered_map<std::string, Cmmvariable>& var_map) {
 		//loop from 0-12: i++ will do a for loop
 		//loop while condition: i++ will do a while loop... i is a var for a counter
 
+		Loop loop;
 		std::string forLoop = "from";
 		std::string whileLoop = "while";
 		std::string loopType;
+
 		for (int i = 4; i < line.size(); i++) {
-			thisLoop.loopType += line[i];
-			if (thisLoop.loopType == forLoop) {
+			loopType += line[i];
+			if (loopType == forLoop) {
 				break;
 			}
-			else if (thisLoop.loopType == whileLoop) {
+			else if (loopType == whileLoop) {
 				break;
 			}
 		}
 
 	
-		if (thisLoop.loopType == forLoop) {
-			thisLoop.doingLoop = true;
+		if (loopType == forLoop) {
 			std::string rangeFloor, rangeCeil;
 			int maxNumberOfLoops = 0;
 			int loopIteratorLocation = 0;
@@ -345,53 +395,36 @@ public:
 			}
 
 			maxNumberOfLoops = (stoi(rangeCeil) - stoi(rangeFloor)) + 1;
-			thisLoop.begin = rangeFloor;
-			thisLoop.end = rangeCeil;
-			thisLoop.numberOfLoops = maxNumberOfLoops;
 
 			if (maxNumberOfLoops <= 0) {
 				warnings.push_back(warnStr + " Loop range was invalid. It must run atleast one time.");
-				return thisLoop;
+				return loop;
 			}
 
-			//Get the iterator name for the loop
-			int expressionLocation = 0;
-			std::string expression = "";
 			for (int i = loopIteratorLocation; i < line.size(); i++) {
-				if (line[i] == '+' || line[i] == '-') {
-					expressionLocation = i;
-					break;
-				}
 				loopIteratorName += line[i];
 			}
 
+			loop.begin = stoi(rangeFloor);
+			loop.end = stoi(rangeCeil);
+			loop.loopType = loopType;
+			loop.numberOfLoops = maxNumberOfLoops;
+			loop.iterator = loopIteratorName;
+			loop.doingLoop = true;
+			return loop;
 
-			//This creates the expression
-			for (int i = expressionLocation; i < line.size(); i++) {
-				expression += line[i];
-			}
-
-			thisLoop.iterator = loopIteratorName;
-			thisLoop.expression = expression;
-			
 		}
 		//For while loops
 		else if (loopType == whileLoop) {
 			std::cout << "while loop detected, feature not coded yet" << std::endl;
 		}
 
-		return thisLoop;
-	}
-
-	static Loop getLoop() {
-		return thisLoop;
 	}
 
 	//This function will return a string vector of all the implemented keywords
 	static std::vector<std::string> getKeywords() {
 		return createKeywords();
 	}
-
 private:
 
 	//This function will store all of the keywords
@@ -403,8 +436,6 @@ private:
 		keywords.push_back("loop");
 		return keywords;
 	}
-
-	static Loop thisLoop;
 
 	//If the dec is a whole number this will return it completed whole-ified to compare its value
 	static std::string wholeDecChecker(std::string leftValue, std::unordered_map<std::string, Cmmvariable>& var_map) {
@@ -426,26 +457,6 @@ private:
 			}
 				return leftValue;
 	}
-};
-
-//Struct for each individual line in the cmm file
-struct line {
-	std::string lineStr;
-	std::string literal = "";
-	int num;
-	int scope = 0;
-};
-
-struct Loop {
-	bool doingLoop = false;
-	int begin = 0;
-	int end = 0;
-	int lineBegin = 0;
-	int lineEnd = 0;
-	int numberOfLoops = 0;
-	std::string iterator = "i";
-	std::string expression = "++";
-	std::string loopType = "";
 };
 
 //This function takes two vectors that make up an expressions terms and operators and returns a string of the result FOR INTEGER MATH
@@ -554,6 +565,11 @@ line createStrLiteral(line thisLine, std::unordered_map<std::string, Cmmvariable
 	bool gettingVar = false;
 	std::string varName = "";
 
+	//If the literal has already been set then just return the line
+	if (thisLine.literal != "") {
+		return thisLine;
+	}
+
 	//This is some mumbo jumbo to search through the line find literals
 	for (int i = 0; i < thisLine.lineStr.size(); i++) {
 
@@ -591,10 +607,11 @@ line createStrLiteral(line thisLine, std::unordered_map<std::string, Cmmvariable
 				gettingVar = false;
 				varName.erase(varName.begin());
 				
-				try {
-					thisLine.literal += var_map.at(varName).getValueString();
+				if (var_map.find(varName) != var_map.end()) {
+					thisLine.varNameLocations.push_back(thisLine.literal.size());
+					thisLine.vars.push_back(varName);
 				}
-				catch (std::out_of_range) {
+				else {
 					warnings.push_back(warnStr + " " + varName + " is not an existing variable");
 				}
 
@@ -646,6 +663,29 @@ bool isBadWord(std::string word) {
 	}
 
 	return false;
+}
+
+//This function takes direct inputs and creates a variable
+void directVarConstructor(std::string name, std::string type, std::string value, std::unordered_map<std::string, Cmmvariable>& var_map, int scope) {
+
+	//if the value is another variable than set this variable to that variable
+	if (var_map.find(value) != var_map.end()) {
+		value = var_map.at(value).getValueString();
+	}
+
+	//The variable name was a bad word
+	if (isBadWord(name)) {
+		warnings.push_back(warnStr + " variable name was invalid");
+		return;
+	}
+
+	//The variable name already exists
+	if (var_map.find(name) != var_map.end()) {
+		warnings.push_back(warnStr + " variable already exists");
+		return;
+	}
+
+	var_map.emplace(name, Cmmvariable(type, value, scope));
 }
 
 //This function will create a new variable
@@ -792,7 +832,7 @@ int checkForKeyWords(line thisLine, std::unordered_map<std::string, Cmmvariable>
 		if (found != std::string::npos) {
 			//DISPLAY
 			if (elem == keywords.at(0)) {
-				Keyword::display(thisLine.literal);
+				Keyword::display(thisLine, var_map);
 				return 1;
 			}
 			//READ
@@ -811,7 +851,7 @@ int checkForKeyWords(line thisLine, std::unordered_map<std::string, Cmmvariable>
 			}
 			//LOOP
 			else if (elem == keywords.at(3)) {
-				if (Keyword::doLoop(thisLine.lineStr, var_map).doingLoop) {
+				if (Keyword::checkLoop(thisLine.lineStr)) {
 					return 3;
 				}
 				else {
@@ -824,74 +864,20 @@ int checkForKeyWords(line thisLine, std::unordered_map<std::string, Cmmvariable>
 	return false;
 }
 
-//Function for reading each individual line... everything is called from here	THIS IS DECREPT
-/*void readLine(line thisLine, std::unordered_map<std::string, Cmmvariable>& var_map, int& scope) {
-	warnStr = "WARNING[line " + std::to_string(thisLine.num) + "]:";
-	//make an adjustment where line thisLine is a vector of lines passed in by open file... open file will actually read all the lines and store them in a vector
-	//this will allow looping and all that other cool stuff
-
-	bool wasVarCreated = false;
-
-	int keywordCode = 0; //0->no keyword found     1->keyword found     2->needs to go lower in scope
-
-	//When the program is passed the conditional block it will set the scope level back to 0
-	if (thisLine.lineStr[0] != '\t') {
-		scope = 0;
-		for (auto elem : var_map) {
-			if (elem.second.getScope() == 1) {
-				var_map.erase(elem.first);
-			}
-		}
+//This only allows the scope for a line to be set once
+void setLineScope(line& thisLine, int newScope) {
+	if (thisLine.scope == -1) {
+		thisLine.scope = newScope;
 	}
-
-	//clears the whitespace and creates literals
-	thisLine = removeWhitespace(thisLine, var_map);
-
-	//If the line is blank do nothing
-	if (thisLine.lineStr.size() == 0) {
-		return;
-	}
-
-	//This makes sure that a conditionals block is skipped if the conditional did not return true
-	if (thisLine.lineStr[0] == '\t' && scope == 0) {
-		return;
-	}
-
-	//This will check if a variable is to be created on this line and do that
-	if (scope == 1) {
-		thisLine.lineStr.erase(thisLine.lineStr.begin());
-	}
-	std::string type = "";
-	for (int i = 0; i < 3; i++) {
-		type += thisLine.lineStr[i];
-	}
-	for (auto elem : Cmmvariable::getTypes()) {
-		if (type == elem) {
-			createVar(thisLine, type, var_map, scope);
-			wasVarCreated = true;
-		}
-	}
-
-	//This function will check for a keyword and execute its stuff
-	keywordCode = checkForKeyWords(thisLine, var_map);
-
-	if (keywordCode == 2) {
-		scope = 1;
-	}
-
-	//This will update a variable
-	if (!wasVarCreated && keywordCode == 0) {
-		updateVar(thisLine, var_map);
-	}
-	
-}*/
+}
 
 void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariable>& var_map) {
 	//This controls whether the program is currently running
 	bool running = true;
 	bool inLoop = false;
-	//this is a data structure for looping
 	Loop loop;
+	int loopCounter = 0;
+
 	//Line num is the access value for the lines vector 
 	int lineNum = 0;
 	//This int is what level the line has access to. If a conditional evaluates true, the program would gain a level of access
@@ -904,9 +890,29 @@ void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariab
 		while (lines.at(lineNum).lineStr[newScope] == '\t') {
 			newScope++;
 		}
-		lines.at(lineNum).scope = newScope;
+		setLineScope(lines.at(lineNum), newScope);
 		if (access > lines.at(lineNum).scope) {
 			access = newScope;
+		}
+
+		//This chunk turns a loop off if it needs to be turned off or it sets the do-while back to the start of the loop
+		if (loop.doingLoop) {
+			access = loop.loopScope;
+
+			if (loop.loopScope > lines.at(lineNum).scope) {
+				
+				if (loopCounter == loop.end) {
+
+					loop.doingLoop = false;
+					access = lines.at(lineNum).scope;
+				}
+				else {
+					loopCounter++;
+					var_map.at(loop.iterator).updateValue(std::to_string(loopCounter));
+					lineNum = loop.lineBegin;
+					continue;
+				}
+			}
 		}
 
 		//If the line is blank OR if the program does not have access to something at this scope then skip the line
@@ -919,13 +925,6 @@ void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariab
 			continue;
 		}
 
-		if (loop.doingLoop) {
-			std::cout << "startV: " << loop.begin << " endV: " << loop.end << " iterator: " << loop.iterator << std::end;
-			std::cout << "startL: " << loop.lineBegin << " endL: " << loop.lineEnd << std::endl;
-			//if (var_map.at(loop.iterator).getValueString() == st) TO DO 
-		}
-
-		//std::cout << "scope: " << lines.at(lineNum).scope << " access: " << access << " num: " << lineNum << std::endl;
 
 		//String for warnings
 		warnStr = "WARNING[line " + std::to_string(lineNum) + "]:";
@@ -952,14 +951,21 @@ void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariab
 		}
 
 		//This function will check for a keyword and execute its stuff
+
 		keywordCode = checkForKeyWords(lines.at(lineNum), var_map);
 
 		//If the code was 2 up the access
 		if (keywordCode >= 2) {
 			access++;
 			if (keywordCode == 3) {
-				loop = Keyword::getLoop();
+				loop = Keyword::startLoop(lines.at(lineNum).lineStr, var_map);
+				loop.loopScope = lines.at(lineNum).scope + 1;
 				loop.lineBegin = lineNum + 1;
+				loopCounter = loop.begin;
+
+				if (loop.loopType == "from") {
+					directVarConstructor(loop.iterator, "int", std::to_string(loop.begin), var_map, lines.at(lineNum).scope + 1);
+				}
 			}
 		}
 
@@ -976,9 +982,9 @@ void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariab
 			running = false;
 		}
 
+
 	} while (running);
 }
-
 
 //this function opens a cmm file to be read
 void openFile(std::string fileName, std::unordered_map<std::string, Cmmvariable>& var_map) {
@@ -988,23 +994,12 @@ void openFile(std::string fileName, std::unordered_map<std::string, Cmmvariable>
 	//This dictates the scope of something. 0 would be global scope and 1 would be inside a conditional or loop block
 	int scope = 0;
 
-	//line thisLine;
-	//thisLine.num = 1;
-	//while (getline(ifs, thisLine.lineStr)) {
-
-		//readLine(ifs, thisLine, var_map, scope);
-		//thisLine.num++;
-	//}
-
-	//This is the WIP for the new line system
-
 	line newLine;
 	while (getline(ifs, newLine.lineStr)) {
 		lines.push_back(newLine);
 	}
 
 	readLine(lines, var_map);
-
 
 }
 
@@ -1026,7 +1021,7 @@ int main() {
 
 	//This section is for debugging. If uncommented it will display all the variables, name/type/value to the terminal
 	//for (auto elem : var_map) {
-	//	std::cout << "Name: " << elem.first << "\tType: " << elem.second.getType() << "\tValue: " << elem.second.getValueString() << std::endl;
+	//	std::cout << "Name: " << elem.first << "\tType: " << elem.second.getType() << "\tValue: " << elem.second.getValueString() << "\tScope: " << elem.second.getScope() << std::endl;
 	//}
 
 }
