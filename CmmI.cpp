@@ -271,31 +271,46 @@ public:
 	}
 	
 	//This function returns true if an if statement evaluated to true; else it returns false
-	static bool conditionalIF(std::string line, std::unordered_map<std::string, Cmmvariable>& var_map) {
+	static bool conditionalIF(line thisLine, std::unordered_map<std::string, Cmmvariable>& var_map) {
 
 		std::string leftValue, rightValue;
 		bool doingLeftValue = true;
 		bool notEqual = false;
+		bool greater = false;
+		bool lesser = false;
 
 		//This loop will set the left and the right values
-		for (int i = 2; i < line.size(); i++) {
-			if (line[i] == '=') {
-				if (line[i - 1] == '!') {
+		for (int i = 2; i < thisLine.lineStr.size(); i++) {
+			//For equality and non-equality
+			if (thisLine.lineStr[i] == '=') {
+				if (thisLine.lineStr[i - 1] == '!') {
 					notEqual = true;
 					leftValue.pop_back();
 				}
 				doingLeftValue = false;
 				i++;
 			}
+			//for greater than
+			else if (thisLine.lineStr[i] == '>') {
+				doingLeftValue = false;
+				greater = true;
+				i++;
+			}
+			//for less than
+			else if (thisLine.lineStr[i] == '<') {
+				doingLeftValue = false;
+				lesser = true;
+				i++;
+			}
 			if (doingLeftValue) {
-				leftValue += line[i];
+				leftValue += thisLine.lineStr[i];
 			}
 			else {
-				rightValue += line[i];
+				rightValue += thisLine.lineStr[i];
 			}
 		}
 
-		//this does some stuff if its only a single value present...	THIS NEEDS SOME EXTRA WORK FOR SURE
+		//this is for a single bol value in the conditional
 		if (doingLeftValue) {
 			if (var_map.find(leftValue) != var_map.end()) {
 				leftValue = var_map.at(leftValue).getValueString();
@@ -310,16 +325,45 @@ public:
 
 		//If either of the values are actually variables
 		if (var_map.find(leftValue) != var_map.end()) {
-			leftValue = var_map.at(leftValue).getValueString();
-			leftValue = wholeDecChecker(leftValue, var_map);
+			if (var_map.at(leftValue).getType() == "dec") {
+				leftValue = wholeDecChecker(leftValue, var_map);
+			}
+
+			else {
+				leftValue = var_map.at(leftValue).getValueString();
+			}
 		}
 
 		if (var_map.find(rightValue) != var_map.end()) {
-			rightValue = var_map.at(rightValue).getValueString();
-			rightValue = wholeDecChecker(rightValue, var_map);
+			if (var_map.at(rightValue).getType() == "dec") {
+				rightValue = wholeDecChecker(rightValue, var_map);
+			}
+			else {
+				rightValue = var_map.at(rightValue).getValueString();
+			}
+		}
+		
+		//If the value was found to be a string literal then do the regular handling for it 
+		if (leftValue[0] == '\"') {
+			leftValue = thisLine.literal;
+		}
+		if (rightValue[0] == '\"') {
+			rightValue = thisLine.literal;
 		}
 
 		//This is the main stuff right here... returning true if the stuffs TRUE
+		if (greater) {
+			if (leftValue > rightValue) {
+				return true;
+			}
+			return false;
+		}
+		if (lesser) {
+			if (leftValue < rightValue) {
+				return true;
+			}
+			return false;
+		}
 		if (leftValue == rightValue) {
 			if (notEqual) {
 				return false;
@@ -334,7 +378,7 @@ public:
 		}
 	}
 
-	//This will check to see if a line is going to be a loop
+	//This will check to see if a line is going to be a loop, used in checkForKeywords
 	static bool checkLoop(std::string line) {
 		std::string thisShouldBeLoop;
 		for (int i = 0; i < 4; i++) {
@@ -351,8 +395,7 @@ public:
 
 	//This is the function for doing loops
 	static Loop startLoop(std::string line, std::unordered_map<std::string, Cmmvariable>& var_map) {
-		//loop from 0-12: i++ will do a for loop
-		//loop while condition: i++ will do a while loop... i is a var for a counter
+		//loop from 0-12: i will do a for loop
 
 		Loop loop;
 		std::string forLoop = "from";
@@ -391,15 +434,27 @@ public:
 				else if (!isFloor && line[i] != '-') {
 					rangeCeil += line[i];
 				}
-
 			}
 
-			maxNumberOfLoops = (stoi(rangeCeil) - stoi(rangeFloor)) + 1;
-
-			if (maxNumberOfLoops <= 0) {
-				warnings.push_back(warnStr + " Loop range was invalid. It must run atleast one time.");
-				return loop;
+			//If either of the range numbers are an int value then set the range numbers to that variables value
+			if (var_map.find(rangeFloor) != var_map.end()) {
+				if (var_map.at(rangeFloor).getType() == "int") {
+					rangeFloor = var_map.at(rangeFloor).getValueString();
+				}
 			}
+			if (var_map.find(rangeCeil) != var_map.end()) {
+				if (var_map.at(rangeCeil).getType() == "int") {
+					rangeCeil = var_map.at(rangeCeil).getValueString();
+				}
+			}
+			
+
+			//maxNumberOfLoops = (stoi(rangeCeil) - stoi(rangeFloor)) + 1;
+
+			//if (maxNumberOfLoops <= 0) {
+			//	warnings.push_back(warnStr + " Loop range was invalid. It must run atleast one time.");
+			//	return loop;
+			//}
 
 			for (int i = loopIteratorLocation; i < line.size(); i++) {
 				loopIteratorName += line[i];
@@ -408,7 +463,7 @@ public:
 			loop.begin = stoi(rangeFloor);
 			loop.end = stoi(rangeCeil);
 			loop.loopType = loopType;
-			loop.numberOfLoops = maxNumberOfLoops;
+			//loop.numberOfLoops = maxNumberOfLoops;
 			loop.iterator = loopIteratorName;
 			loop.doingLoop = true;
 			return loop;
@@ -724,6 +779,10 @@ void createVar(line thisLine, std::string type, std::unordered_map<std::string, 
 		}
 		//if the type is a string set the value to the string literal for that line
 		else if (type == "str") {
+			//Searches through the var location and var name vectors in the line struct and inserts them into the literal
+			for (int i = 0; i < thisLine.varNameLocations.size(); i++) {
+				thisLine.literal.insert(thisLine.varNameLocations.at(i), var_map.at(thisLine.vars.at(i)).getValueString());
+			}
 			varValue = thisLine.literal;
 		}
 
@@ -779,13 +838,20 @@ void updateVar(line thisLine, std::unordered_map<std::string, Cmmvariable>& var_
 		isExpressionVar = true;
 	}
 
-	//FOR STRING
+	
 	if (doesVarExist) {
+		//FOR STRING
 		if (var_map.at(varName).getType() == Cmmvariable::getTypes().at(4)) {
+
 			if (isExpressionVar) {
 				var_map.at(varName).updateValue(var_map.at(expression).getValueString());
 			}
 			else {
+				//Searches through the var location and var name vectors in the line struct and inserts them into the literal
+				for (int i = 0; i < thisLine.varNameLocations.size(); i++) {
+					thisLine.literal.insert(thisLine.varNameLocations.at(i), var_map.at(thisLine.vars.at(i)).getValueString());
+				}
+				
 				var_map.at(varName).updateValue(thisLine.literal);
 			}
 		}
@@ -842,7 +908,7 @@ int checkForKeyWords(line thisLine, std::unordered_map<std::string, Cmmvariable>
 			}
 			//IF 
 			else if (elem == keywords.at(2)) {
-				if (Keyword::conditionalIF(thisLine.lineStr, var_map)) {
+				if (Keyword::conditionalIF(thisLine, var_map)) {
 					return 2;
 				}
 				else {
@@ -871,6 +937,7 @@ void setLineScope(line& thisLine, int newScope) {
 	}
 }
 
+//This is the control function for the language. Everything happens from here.
 void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariable>& var_map) {
 	//This controls whether the program is currently running
 	bool running = true;
@@ -951,7 +1018,6 @@ void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariab
 		}
 
 		//This function will check for a keyword and execute its stuff
-
 		keywordCode = checkForKeyWords(lines.at(lineNum), var_map);
 
 		//If the code was 2 up the access
@@ -970,7 +1036,7 @@ void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariab
 		}
 
 		//This will update a variable
-		if (!wasVarCreated && keywordCode == 0) {
+		if (!wasVarCreated && keywordCode == 0 && lines.at(lineNum).lineStr.size() != 0) {
 			updateVar(lines.at(lineNum), var_map);
 		}
 
