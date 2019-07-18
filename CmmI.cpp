@@ -382,7 +382,10 @@ public:
 		if (rightValue[0] == '\"') {
 			rightValue = thisLine.literal;
 		}
-
+		
+		//The following commented out lines are just a debugger for this function
+		//std::cout << "left: " << leftValue << " right: " << rightValue << std::endl;
+		//std::cout << "g: " << greater << " ge: " << greaterE << " l: " << lesser << " le: " << lesserE << " ne: " << notEqual << std::endl;
 		//This is the main stuff right here... returning true if the stuffs TRUE
 		if (greater) {
 			if (greaterE) {
@@ -508,7 +511,6 @@ public:
 		}
 		//For while loops
 		else if (loopType == whileLoop) {
-			std::cout << "while loop detected, feature not coded yet" << std::endl;
 			return loop;
 		}
 	}
@@ -1016,7 +1018,7 @@ void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariab
 
 				if (loops.at(nestedLoopCounter).loopScope > lines.at(lineNum).scope) {
 					
-					//This is the section for the from loop
+					//When a from loop reaches its ending line
 					if (loops.at(nestedLoopCounter).loopType == "from") {
 						if (loops.at(nestedLoopCounter).counter == loops.at(nestedLoopCounter).end) {
 
@@ -1035,9 +1037,12 @@ void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariab
 							continue;
 						}
 					}
-					//This is the section for the while loop
+					//When a while loop reaches its ending line
 					else if (loops.at(nestedLoopCounter).loopType == "while") {
-						lineNum = loops.at(nestedLoopCounter).lineBegin;
+						loops.at(nestedLoopCounter).doingLoop = Keyword::evaluate(lines.at(loops.at(nestedLoopCounter).lineBegin - 1), var_map, 3);
+						if (loops.at(nestedLoopCounter).doingLoop) {
+							lineNum = loops.at(nestedLoopCounter).lineBegin;
+						}
 						continue;
 					}
 				}
@@ -1091,10 +1096,15 @@ void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariab
 				nestedLoopCounter++;
 				loops.at(nestedLoopCounter).loopScope = lines.at(lineNum).scope + 1;
 				loops.at(nestedLoopCounter).lineBegin = lineNum + 1;
-				loops.at(nestedLoopCounter).counter = loops.at(nestedLoopCounter).begin;
 
 				if (loops.at(nestedLoopCounter).loopType == "from") {
+					loops.at(nestedLoopCounter).counter = loops.at(nestedLoopCounter).begin;
 					directVarConstructor(loops.at(nestedLoopCounter).iterator, "int", std::to_string(loops.at(nestedLoopCounter).begin), var_map, lines.at(lineNum).scope + 1);
+				}
+
+				if (loops.at(nestedLoopCounter).loopType == "while") {
+					//This is horrible, but 3 is the code for while loops
+					loops.at(nestedLoopCounter).doingLoop = Keyword::evaluate(lines.at(lineNum), var_map, 3);
 				}
 			}
 		}
