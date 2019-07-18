@@ -26,8 +26,8 @@ struct Loop {
 	int end = 0;
 	int lineBegin = 0;
 	int lineEnd = 0;
-	int numberOfLoops = 0;
 	int loopScope = 0;
+	int counter = 0;
 	std::string iterator = "i";
 	std::string expression;
 	std::string loopType = "";
@@ -272,7 +272,27 @@ public:
 	
 	//This function returns true if an if statement evaluated to true; else it returns false
 	static bool conditionalIF(line thisLine, std::unordered_map<std::string, Cmmvariable>& var_map) {
+		//The if code is 1
+		return evaluate(thisLine, var_map, 1);
+	}
 
+	//This function takes a line, code and var_map and compares two values on either side of an expression.
+	static bool evaluate(line thisLine, std::unordered_map<std::string, Cmmvariable>& var_map, int code) {
+		//the code is representing what keyword needs to use evaluate
+		// 1-> if	2-> elif	3-> loop while
+
+		switch (code) {
+			case 1: 
+				code = 2;
+				break;
+			case 2: 
+				code = 4;
+				break;
+			case 3: 
+				code = 9;
+				break;
+		}
+		
 		std::string leftValue, rightValue;
 		bool doingLeftValue = true;
 		bool notEqual = false;
@@ -282,7 +302,7 @@ public:
 		bool lesserE = false;
 
 		//This loop will set the left and the right values
-		for (int i = 2; i < thisLine.lineStr.size(); i++) {
+		for (int i = code; i < thisLine.lineStr.size(); i++) {
 			//For equality and non-equality
 			if (thisLine.lineStr[i] == '=') {
 				if (thisLine.lineStr[i - 1] == '!') {
@@ -354,7 +374,7 @@ public:
 				rightValue = var_map.at(rightValue).getValueString();
 			}
 		}
-		
+
 		//If the value was found to be a string literal then do the regular handling for it 
 		if (leftValue[0] == '\"') {
 			leftValue = thisLine.literal;
@@ -400,6 +420,8 @@ public:
 			}
 			return false;
 		}
+
+
 	}
 
 	//This will check to see if a line is going to be a loop, used in checkForKeywords
@@ -436,6 +458,8 @@ public:
 			}
 		}
 
+		loop.loopType = loopType;
+		loop.doingLoop = true;
 	
 		if (loopType == forLoop) {
 			std::string rangeFloor, rangeCeil;
@@ -471,14 +495,6 @@ public:
 					rangeCeil = var_map.at(rangeCeil).getValueString();
 				}
 			}
-			
-
-			//maxNumberOfLoops = (stoi(rangeCeil) - stoi(rangeFloor)) + 1;
-
-			//if (maxNumberOfLoops <= 0) {
-			//	warnings.push_back(warnStr + " Loop range was invalid. It must run atleast one time.");
-			//	return loop;
-			//}
 
 			for (int i = loopIteratorLocation; i < line.size(); i++) {
 				loopIteratorName += line[i];
@@ -486,18 +502,15 @@ public:
 
 			loop.begin = stoi(rangeFloor);
 			loop.end = stoi(rangeCeil);
-			loop.loopType = loopType;
-			//loop.numberOfLoops = maxNumberOfLoops;
 			loop.iterator = loopIteratorName;
-			loop.doingLoop = true;
 			return loop;
 
 		}
 		//For while loops
 		else if (loopType == whileLoop) {
 			std::cout << "while loop detected, feature not coded yet" << std::endl;
+			return loop;
 		}
-
 	}
 
 	//This function will return a string vector of all the implemented keywords
@@ -767,6 +780,15 @@ void directVarConstructor(std::string name, std::string type, std::string value,
 	var_map.emplace(name, Cmmvariable(type, value, scope));
 }
 
+//Calling this function will kill all the variables of whatever scope has been passed.
+void scopeVarDestroyer(std::unordered_map<std::string, Cmmvariable>& var_map, int scope) {
+	for (auto elem : var_map) {
+		if (elem.second.getScope() == scope) {
+			var_map.erase(elem.first);
+		}
+	}
+}
+
 //This function will create a new variable
 void createVar(line thisLine, std::string type, std::unordered_map<std::string, Cmmvariable>& var_map, int scope) {
 
@@ -966,9 +988,10 @@ void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariab
 	//This controls whether the program is currently running
 	bool running = true;
 	bool inLoop = false;
-	Loop loop;
-	int loopCounter = 0;
-
+	//Loop loop;
+	std::vector<Loop> loops;
+	//int loopCounter = 0;
+	int nestedLoopCounter = -1;
 	//Line num is the access value for the lines vector 
 	int lineNum = 0;
 	//This int is what level the line has access to. If a conditional evaluates true, the program would gain a level of access
@@ -987,21 +1010,36 @@ void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariab
 		}
 
 		//This chunk turns a loop off if it needs to be turned off or it sets the do-while back to the start of the loop
-		if (loop.doingLoop) {
-			access = loop.loopScope;
+		if (nestedLoopCounter != -1) {
+			if (loops.at(nestedLoopCounter).doingLoop) {
+				access = loops.at(nestedLoopCounter).loopScope;
 
-			if (loop.loopScope > lines.at(lineNum).scope) {
-				
-				if (loopCounter == loop.end) {
+				if (loops.at(nestedLoopCounter).loopScope > lines.at(lineNum).scope) {
+					
+					//This is the section for the from loop
+					if (loops.at(nestedLoopCounter).loopType == "from") {
+						if (loops.at(nestedLoopCounter).counter == loops.at(nestedLoopCounter).end) {
 
-					loop.doingLoop = false;
-					access = lines.at(lineNum).scope;
-				}
-				else {
-					loopCounter++;
-					var_map.at(loop.iterator).updateValue(std::to_string(loopCounter));
-					lineNum = loop.lineBegin;
-					continue;
+							loops.at(nestedLoopCounter).doingLoop = false;
+							access = lines.at(lineNum).scope;
+							scopeVarDestroyer(var_map, loops.at(nestedLoopCounter).loopScope);
+							if (nestedLoopCounter > 0) {
+								loops.pop_back();
+								nestedLoopCounter--;
+							}
+						}
+						else {
+							loops.at(nestedLoopCounter).counter++;
+							var_map.at(loops.at(nestedLoopCounter).iterator).updateValue(std::to_string(loops.at(nestedLoopCounter).counter));
+							lineNum = loops.at(nestedLoopCounter).lineBegin;
+							continue;
+						}
+					}
+					//This is the section for the while loop
+					else if (loops.at(nestedLoopCounter).loopType == "while") {
+						lineNum = loops.at(nestedLoopCounter).lineBegin;
+						continue;
+					}
 				}
 			}
 		}
@@ -1048,13 +1086,15 @@ void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariab
 		if (keywordCode >= 2) {
 			access++;
 			if (keywordCode == 3) {
-				loop = Keyword::startLoop(lines.at(lineNum).lineStr, var_map);
-				loop.loopScope = lines.at(lineNum).scope + 1;
-				loop.lineBegin = lineNum + 1;
-				loopCounter = loop.begin;
+				Loop newLoop = Keyword::startLoop(lines.at(lineNum).lineStr, var_map);
+				loops.push_back(newLoop);
+				nestedLoopCounter++;
+				loops.at(nestedLoopCounter).loopScope = lines.at(lineNum).scope + 1;
+				loops.at(nestedLoopCounter).lineBegin = lineNum + 1;
+				loops.at(nestedLoopCounter).counter = loops.at(nestedLoopCounter).begin;
 
-				if (loop.loopType == "from") {
-					directVarConstructor(loop.iterator, "int", std::to_string(loop.begin), var_map, lines.at(lineNum).scope + 1);
+				if (loops.at(nestedLoopCounter).loopType == "from") {
+					directVarConstructor(loops.at(nestedLoopCounter).iterator, "int", std::to_string(loops.at(nestedLoopCounter).begin), var_map, lines.at(lineNum).scope + 1);
 				}
 			}
 		}
