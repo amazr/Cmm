@@ -277,7 +277,9 @@ public:
 		bool doingLeftValue = true;
 		bool notEqual = false;
 		bool greater = false;
+		bool greaterE = false;
 		bool lesser = false;
+		bool lesserE = false;
 
 		//This loop will set the left and the right values
 		for (int i = 2; i < thisLine.lineStr.size(); i++) {
@@ -292,12 +294,22 @@ public:
 			}
 			//for greater than
 			else if (thisLine.lineStr[i] == '>') {
+				if (thisLine.lineStr[i + 1] == '=') {
+					greaterE = true;
+					greater = false;
+					i++;
+				}
 				doingLeftValue = false;
 				greater = true;
 				i++;
 			}
 			//for less than
 			else if (thisLine.lineStr[i] == '<') {
+				if (thisLine.lineStr[i + 1] == '=') {
+					lesserE = true;
+					lesser = false;
+					i++;
+				}
 				doingLeftValue = false;
 				lesser = true;
 				i++;
@@ -353,12 +365,24 @@ public:
 
 		//This is the main stuff right here... returning true if the stuffs TRUE
 		if (greater) {
+			if (greaterE) {
+				if (leftValue >= rightValue) {
+					return true;
+				}
+				return false;
+			}
 			if (leftValue > rightValue) {
 				return true;
 			}
 			return false;
 		}
 		if (lesser) {
+			if (lesserE) {
+				if (leftValue <= rightValue) {
+					return true;
+				}
+				return false;
+			}
 			if (leftValue < rightValue) {
 				return true;
 			}
