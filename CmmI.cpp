@@ -502,7 +502,7 @@ public:
 			for (int i = loopIteratorLocation; i < line.size(); i++) {
 				loopIteratorName += line[i];
 			}
-
+			
 			loop.begin = stoi(rangeFloor);
 			loop.end = stoi(rangeCeil);
 			loop.iterator = loopIteratorName;
@@ -730,8 +730,8 @@ line removeWhitespace(line thisLine, std::unordered_map<std::string, Cmmvariable
 	thisLine = createStrLiteral(thisLine, var_map);
 
 	for (int i = 0; i < thisLine.lineStr.size(); i++) {
-		if (thisLine.lineStr[i] == ' ' || thisLine.lineStr[i] == '\t') {
-			thisLine.lineStr.erase(thisLine.lineStr.begin() + i);
+		if (thisLine.lineStr[i] == ' ') {
+			thisLine.lineStr.erase(i, 1);
 		}
 	}
 
@@ -885,7 +885,6 @@ void updateVar(line thisLine, std::unordered_map<std::string, Cmmvariable>& var_
 	if (var_map.find(expression) != var_map.end()) {
 		isExpressionVar = true;
 	}
-
 	
 	if (doesVarExist) {
 		//FOR STRING
@@ -982,6 +981,7 @@ int checkForKeyWords(line thisLine, std::unordered_map<std::string, Cmmvariable>
 void setLineScope(line& thisLine, int newScope) {
 	if (thisLine.scope == -1) {
 		thisLine.scope = newScope;
+		thisLine.lineStr.erase(0, thisLine.scope);
 	}
 }
 
@@ -1014,14 +1014,11 @@ void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariab
 		//This chunk turns a loop off if it needs to be turned off or it sets the do-while back to the start of the loop
 		if (nestedLoopCounter != -1) {
 			if (loops.at(nestedLoopCounter).doingLoop) {
-				access = loops.at(nestedLoopCounter).loopScope;
-
+				access = lines.at(lineNum).scope;
 				if (loops.at(nestedLoopCounter).loopScope > lines.at(lineNum).scope) {
-					
 					//When a from loop reaches its ending line
 					if (loops.at(nestedLoopCounter).loopType == "from") {
 						if (loops.at(nestedLoopCounter).counter == loops.at(nestedLoopCounter).end) {
-
 							loops.at(nestedLoopCounter).doingLoop = false;
 							access = lines.at(lineNum).scope;
 							scopeVarDestroyer(var_map, loops.at(nestedLoopCounter).loopScope);
@@ -1089,7 +1086,7 @@ void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariab
 
 		//If the code was 2 up the access
 		if (keywordCode >= 2) {
-			access++;
+			access = access + 1;
 			if (keywordCode == 3) {
 				Loop newLoop = Keyword::startLoop(lines.at(lineNum).lineStr, var_map);
 				loops.push_back(newLoop);
