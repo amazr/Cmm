@@ -1014,14 +1014,14 @@ void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariab
 		//This chunk turns a loop off if it needs to be turned off or it sets the do-while back to the start of the loop
 		if (nestedLoopCounter != -1) {
 			if (loops.at(nestedLoopCounter).doingLoop) {
-				access = lines.at(lineNum).scope;
+				//access = lines.at(lineNum).scope;
+
 				if (loops.at(nestedLoopCounter).loopScope > lines.at(lineNum).scope) {
 					//When a from loop reaches its ending line
 					if (loops.at(nestedLoopCounter).loopType == "from") {
 						if (loops.at(nestedLoopCounter).counter == loops.at(nestedLoopCounter).end) {
 							loops.at(nestedLoopCounter).doingLoop = false;
 							access = lines.at(lineNum).scope;
-							scopeVarDestroyer(var_map, loops.at(nestedLoopCounter).loopScope);
 							if (nestedLoopCounter > 0) {
 								loops.pop_back();
 								nestedLoopCounter--;
@@ -1036,6 +1036,7 @@ void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariab
 					}
 					//When a while loop reaches its ending line
 					else if (loops.at(nestedLoopCounter).loopType == "while") {
+						//this line will check the evaluation of the loop parameters and change doingloop if needed
 						loops.at(nestedLoopCounter).doingLoop = Keyword::evaluate(lines.at(loops.at(nestedLoopCounter).lineBegin - 1), var_map, 3);
 						if (loops.at(nestedLoopCounter).doingLoop) {
 							lineNum = loops.at(nestedLoopCounter).lineBegin;
@@ -1055,7 +1056,6 @@ void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariab
 			}
 			continue;
 		}
-
 
 		//String for warnings
 		warnStr = "WARNING[line " + std::to_string(lineNum) + "]:";
