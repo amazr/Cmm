@@ -240,14 +240,16 @@ public:
 	static void display(line thisLine, std::unordered_map<std::string, Cmmvariable> var_map) {
 
 		std::string tempVarName = "";
-		bool gettingVarName = false;
+		bool gettingVarName = false;	
 		int varStartLocation, varStrSize;
+		int nameLength = 0;
 
 		//Searches through the var location and var name vectors in the line struct and inserts them into the literal
 		for (int i = 0; i < thisLine.varNameLocations.size(); i++ ) {
-			thisLine.literal.insert(thisLine.varNameLocations.at(i), var_map.at(thisLine.vars.at(i)).getValueString());
+			thisLine.literal.insert(thisLine.varNameLocations.at(i) + nameLength, var_map.at(thisLine.vars.at(i)).getValueString());
+			nameLength += var_map.at(thisLine.vars.at(i)).getValueString().size() - 1;
 		}
-
+		
 		std::cout << thisLine.literal;
 	}
 
@@ -280,7 +282,7 @@ public:
 	static bool evaluate(line thisLine, std::unordered_map<std::string, Cmmvariable>& var_map, int code) {
 		//the code is representing what keyword needs to use evaluate
 		// 1-> if	2-> elif	3-> loop while
-
+		//this is very horrible... 
 		switch (code) {
 			case 1: 
 				code = 2;
@@ -300,6 +302,8 @@ public:
 		bool greaterE = false;
 		bool lesser = false;
 		bool lesserE = false;
+		bool intCompare = false;
+		bool doubleCompare = false;
 
 		//This loop will set the left and the right values
 		for (int i = code; i < thisLine.lineStr.size(); i++) {
@@ -359,6 +363,11 @@ public:
 		if (var_map.find(leftValue) != var_map.end()) {
 			if (var_map.at(leftValue).getType() == "dec") {
 				leftValue = wholeDecChecker(leftValue, var_map);
+				doubleCompare = true;
+			}
+			else if (var_map.at(leftValue).getType() == "int") {
+				intCompare = true;
+				leftValue = var_map.at(leftValue).getValueString();
 			}
 
 			else {
@@ -369,6 +378,11 @@ public:
 		if (var_map.find(rightValue) != var_map.end()) {
 			if (var_map.at(rightValue).getType() == "dec") {
 				rightValue = wholeDecChecker(rightValue, var_map);
+				doubleCompare = true;
+			}
+			else if (var_map.at(rightValue).getType() == "int") {
+				intCompare = true;
+				rightValue = var_map.at(rightValue).getValueString();
 			}
 			else {
 				rightValue = var_map.at(rightValue).getValueString();
@@ -389,19 +403,67 @@ public:
 		//This is the main stuff right here... returning true if the stuffs TRUE
 		if (greater) {
 			if (greaterE) {
+				if (intCompare) {
+					if (stoi(leftValue) >= stoi(rightValue)) {
+						return true;
+					}
+					return false;
+				}
+				else if (doubleCompare) {
+					if (stod(leftValue) >= stod(rightValue)) {
+						return true;
+					}
+					return false;
+				}
 				if (leftValue >= rightValue) {
 					return true;
 				}
 				return false;
 			}
-			if (leftValue > rightValue) {
+			if (intCompare) {
+				if (stoi(leftValue) > stoi(rightValue)) {
+					return true;
+				}
+				return false;
+			}
+			else if (doubleCompare) {
+				if (stod(leftValue) > stod(rightValue)) {
+					return true;
+				}
+				return false;
+			}
+			if  (leftValue > rightValue) {
 				return true;
 			}
 			return false;
 		}
 		if (lesser) {
 			if (lesserE) {
+				if (intCompare) {
+					if (stoi(leftValue) <= stoi(rightValue)) {
+						return true;
+					}
+					return false;
+				}
+				else if (doubleCompare) {
+					if (stod(leftValue) <= stod(rightValue)) {
+						return true;
+					}
+					return false;
+				}
 				if (leftValue <= rightValue) {
+					return true;
+				}
+				return false;
+			}
+			if (intCompare) {
+				if (stoi(leftValue) < stoi(rightValue)) {
+					return true;
+				}
+				return false;
+			}
+			else if (doubleCompare) {
+				if (stod(leftValue) < stod(rightValue)) {
 					return true;
 				}
 				return false;
@@ -411,6 +473,36 @@ public:
 			}
 			return false;
 		}
+		if (intCompare) {
+			if (stoi(leftValue) == stoi(rightValue)) {
+				if (notEqual) {
+					return false;
+				}
+				return true;
+			}
+			else {
+				if (notEqual) {
+					return true;
+				}
+				return false;
+			}
+
+		}
+		else if (doubleCompare) {
+			if (stod(leftValue) == stod(rightValue)) {
+				if (notEqual) {
+					return false;
+				}
+				return true;
+			}
+			else {
+				if (notEqual) {
+					return true;
+				}
+				return false;
+			}
+		}
+
 		if (leftValue == rightValue) {
 			if (notEqual) {
 				return false;
@@ -528,6 +620,8 @@ private:
 		keywords.push_back("read");
 		keywords.push_back("if");
 		keywords.push_back("loop");
+		keywords.push_back("from");
+		keywords.push_back("while");
 		return keywords;
 	}
 
@@ -678,13 +772,6 @@ line createStrLiteral(line thisLine, std::unordered_map<std::string, Cmmvariable
 		if (inLiteral && thisLine.lineStr[i] != '\"') {
 			thisLine.literal += thisLine.lineStr[i];
 		}
-		//Support for \n character
-		if (inLiteral && thisLine.lineStr[i] == 'n' && thisLine.lineStr[i - 1] == '\\') {
-			int size = thisLine.literal.size();
-			thisLine.literal.erase(size - 1);
-			thisLine.literal.erase(size - 2);
-			thisLine.literal += "\n";
-		}
 
 		//Ending line statement is a '.'
 		if (!inLiteral && thisLine.lineStr[i] == '.') {
@@ -702,7 +789,7 @@ line createStrLiteral(line thisLine, std::unordered_map<std::string, Cmmvariable
 				varName.erase(varName.begin());
 				
 				if (var_map.find(varName) != var_map.end()) {
-					thisLine.varNameLocations.push_back(thisLine.literal.size());
+					thisLine.varNameLocations.push_back(thisLine.literal.size() + thisLine.varNameLocations.size());
 					thisLine.vars.push_back(varName);
 				}
 				else {
@@ -747,9 +834,22 @@ bool isBadWord(std::string word) {
 			if (word.size() == 1) {
 				return true;
 			}
-			return false;
 		}
 		return true;
+	}
+	std::string tempWord = "";
+	for (auto elem : Keyword::getKeywords()) {
+		for (int i = 0; i < elem.size(); i++) {
+			tempWord += word[i];
+		}
+
+		if (tempWord == elem) {
+			return true;
+		}
+		if (word == elem) {
+			return true;
+		}
+		tempWord = "";
 	}
 
 	if (word == "true" || word == "false" || word == "t" || word == "f") {
@@ -791,65 +891,6 @@ void scopeVarDestroyer(std::unordered_map<std::string, Cmmvariable>& var_map, in
 	}
 }
 
-//This function will create a new variable
-void createVar(line thisLine, std::string type, std::unordered_map<std::string, Cmmvariable>& var_map, int scope) {
-
-	std::string dVarName = "";
-	std::string varName = "";
-	bool defaultDec = true;
-	int equalLocation = 0;
-
-	//this finds the var name
-	for (int i = 3; i < thisLine.lineStr.size(); i++) {
-		if (thisLine.lineStr[i] == '=') {
-			equalLocation = i;
-			defaultDec = false;
-			for (int j = 3; j < i; j++) {
-				varName += thisLine.lineStr[j];
-			}
-		}
-		dVarName += thisLine.lineStr[i];
-	}
-
-	if (defaultDec) {
-		var_map.emplace(dVarName, Cmmvariable(type, scope));
-	}
-	else {
-
-		std::string varValue = "";
-		for (int i = equalLocation + 1; i < thisLine.lineStr.size(); i++) {
-			varValue += thisLine.lineStr[i];
-		}
-
-		//if the value is another variable than set this variable to that variable
-		if (var_map.find(varValue) != var_map.end()) {
-			varValue = var_map.at(varValue).getValueString();
-		}
-		//if the type is a string set the value to the string literal for that line
-		else if (type == "str") {
-			//Searches through the var location and var name vectors in the line struct and inserts them into the literal
-			for (int i = 0; i < thisLine.varNameLocations.size(); i++) {
-				thisLine.literal.insert(thisLine.varNameLocations.at(i), var_map.at(thisLine.vars.at(i)).getValueString());
-			}
-			varValue = thisLine.literal;
-		}
-
-		//The variable name was a bad word
-		if (isBadWord(varName)) {
-			warnings.push_back(warnStr + " variable name was invalid");
-			return;
-		}
-
-		//The variable name already exists
-		if (var_map.find(varName) != var_map.end()) {
-			warnings.push_back(warnStr + " variable already exists");
-			return;
-		}
-
-		var_map.emplace(varName, Cmmvariable(type, varValue, scope));
-	}
-}
-
 //This will update a variables value if it needs to be
 void updateVar(line thisLine, std::unordered_map<std::string, Cmmvariable>& var_map) {
 
@@ -885,7 +926,7 @@ void updateVar(line thisLine, std::unordered_map<std::string, Cmmvariable>& var_
 	if (var_map.find(expression) != var_map.end()) {
 		isExpressionVar = true;
 	}
-	
+
 	if (doesVarExist) {
 		//FOR STRING
 		if (var_map.at(varName).getType() == Cmmvariable::getTypes().at(4)) {
@@ -898,7 +939,7 @@ void updateVar(line thisLine, std::unordered_map<std::string, Cmmvariable>& var_
 				for (int i = 0; i < thisLine.varNameLocations.size(); i++) {
 					thisLine.literal.insert(thisLine.varNameLocations.at(i), var_map.at(thisLine.vars.at(i)).getValueString());
 				}
-				
+
 				var_map.at(varName).updateValue(thisLine.literal);
 			}
 		}
@@ -930,8 +971,71 @@ void updateVar(line thisLine, std::unordered_map<std::string, Cmmvariable>& var_
 			}
 		}
 	}
+}
 
+//This function will create a new variable
+void createVar(line thisLine, std::string type, std::unordered_map<std::string, Cmmvariable>& var_map, int scope) {
 
+	std::string dVarName = "";
+	std::string varName = "";
+	bool defaultDec = true;
+	int equalLocation = 0;
+
+	//this finds the var name
+	for (int i = 3; i < thisLine.lineStr.size(); i++) {
+		if (thisLine.lineStr[i] == '=') {
+			equalLocation = i;
+			defaultDec = false;
+			for (int j = 3; j < i; j++) {
+				varName += thisLine.lineStr[j];
+			}
+		}
+		dVarName += thisLine.lineStr[i];
+	}
+
+	if (defaultDec) {
+		var_map.emplace(dVarName, Cmmvariable(type, scope));
+	}
+	else {
+
+		/*std::string varValue = "";
+		for (int i = equalLocation + 1; i < thisLine.lineStr.size(); i++) {
+			varValue += thisLine.lineStr[i];
+		}
+
+		//if the value is another variable than set this variable to that variable
+		if (var_map.find(varValue) != var_map.end()) {
+			varValue = var_map.at(varValue).getValueString();
+		}
+		//if the type is a string set the value to the string literal for that line
+		else if (type == "str") {
+			//Searches through the var location and var name vectors in the line struct and inserts them into the literal
+			for (int i = 0; i < thisLine.varNameLocations.size(); i++) {
+				thisLine.literal.insert(thisLine.varNameLocations.at(i), var_map.at(thisLine.vars.at(i)).getValueString());
+			}
+			varValue = thisLine.literal;
+		}*/
+		
+		thisLine.lineStr.erase(0, 3);
+
+		//The variable name was a bad word
+		if (isBadWord(varName)) {
+			warnings.push_back(warnStr + " variable name was invalid");
+			return;
+		}
+
+		//The variable name already exists
+		if (var_map.find(varName) != var_map.end()) {
+			warnings.push_back(warnStr + " variable already exists");
+			return;
+		}
+
+		//thisLine.lineStr.erase();
+		std::cout << thisLine.lineStr[0] << std::endl;
+		var_map.emplace(varName, Cmmvariable(type, scope));
+		updateVar(thisLine, var_map);
+		//var_map.emplace(varName, Cmmvariable(type, varValue, scope));
+	}
 }
 
 //This function checks for keywords and calls the required functions for them to work
@@ -1000,7 +1104,7 @@ void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariab
 	int access = 0;
 
 	do {
-
+		
 		//This will determine the scope of the line and set the lines vector scope 
 		int newScope = 0;
 		while (lines.at(lineNum).lineStr[newScope] == '\t') {
@@ -1014,8 +1118,11 @@ void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariab
 		//This chunk turns a loop off if it needs to be turned off or it sets the do-while back to the start of the loop
 		if (nestedLoopCounter != -1) {
 			if (loops.at(nestedLoopCounter).doingLoop) {
-				//access = lines.at(lineNum).scope;
-
+				//std::cout << "loop begin: " << loops.at(nestedLoopCounter).begin << " loop end: " << loops.at(nestedLoopCounter).end << std::endl;
+				if (access < loops.at(nestedLoopCounter).loopScope) {
+					access = loops.at(nestedLoopCounter).loopScope;
+				}
+				//std::cout << "access: " << access << " scope: " << lines.at(lineNum).scope << std::endl;
 				if (loops.at(nestedLoopCounter).loopScope > lines.at(lineNum).scope) {
 					//When a from loop reaches its ending line
 					if (loops.at(nestedLoopCounter).loopType == "from") {
@@ -1023,6 +1130,7 @@ void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariab
 							loops.at(nestedLoopCounter).doingLoop = false;
 							access = lines.at(lineNum).scope;
 							if (nestedLoopCounter > 0) {
+								var_map.erase(loops.at(nestedLoopCounter).iterator);
 								loops.pop_back();
 								nestedLoopCounter--;
 							}
@@ -1040,6 +1148,7 @@ void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariab
 						loops.at(nestedLoopCounter).doingLoop = Keyword::evaluate(lines.at(loops.at(nestedLoopCounter).lineBegin - 1), var_map, 3);
 						if (loops.at(nestedLoopCounter).doingLoop) {
 							lineNum = loops.at(nestedLoopCounter).lineBegin;
+							access = lines.at(lineNum).scope;
 						}
 						continue;
 					}
