@@ -1098,20 +1098,27 @@ void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariab
 			newScope++;
 		}
 		setLineScope(lines.at(lineNum), newScope);
+
 		if (access > lines.at(lineNum).scope) {
 			access = newScope;
 		}
 
+
 		if (lineNum > 0) {
 			if (lines.at(lineNum).scope < lines.at(lineNum - 1).scope) {
-				scopeVarDestroyer(var_map, lines.at(lineNum - 1).scope);
+				if (nestedLoopCounter == -1) {
+					scopeVarDestroyer(var_map, lines.at(lineNum - 1).scope);
+				}
+				else if (!loops.at(nestedLoopCounter).doingLoop) {
+					scopeVarDestroyer(var_map, lines.at(lineNum - 1).scope);
+				}
 			}
 		}
+
 
 		//This chunk turns a loop off if it needs to be turned off or it sets the do-while back to the start of the loop
 		if (nestedLoopCounter != -1) {
 			if (loops.at(nestedLoopCounter).doingLoop) {
-
 				if (access < loops.at(nestedLoopCounter).loopScope) {
 					access = loops.at(nestedLoopCounter).loopScope;
 				}
@@ -1122,8 +1129,9 @@ void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariab
 						if (loops.at(nestedLoopCounter).counter == loops.at(nestedLoopCounter).end) {
 							loops.at(nestedLoopCounter).doingLoop = false;
 							access = lines.at(lineNum).scope;
+							scopeVarDestroyer(var_map, loops.at(nestedLoopCounter).loopScope);
 							if (nestedLoopCounter > 0) {
-								var_map.erase(loops.at(nestedLoopCounter).iterator);
+								//var_map.erase(loops.at(nestedLoopCounter).iterator);
 								loops.pop_back();
 								nestedLoopCounter--;
 							}
@@ -1142,6 +1150,9 @@ void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariab
 						if (loops.at(nestedLoopCounter).doingLoop) {
 							lineNum = loops.at(nestedLoopCounter).lineBegin;
 							access = lines.at(lineNum).scope;
+						}
+						else {
+							scopeVarDestroyer(var_map, loops.at(nestedLoopCounter).loopScope);
 						}
 						continue;
 					}
