@@ -38,16 +38,18 @@ struct Loop {
 class Cmmvariable {
 public:
 	//With a value
-	Cmmvariable(std::string t, std::string value, int scope) {
+	Cmmvariable(std::string t, std::string value, int scope, bool isList) {
 		type = t;
 		setValue(value);
 		this->scope = scope;
+		this->isList = isList;
 	}
 	//If declared with no value
-	Cmmvariable(std::string t, int scope) {
+	Cmmvariable(std::string t, int scope, bool isList) {
 		type = t;
 		setValueStringDefault();
 		this->scope = scope;
+		this->isList = isList;
 	}
 
 	void updateValue(std::string value) {
@@ -131,6 +133,35 @@ public:
 		return scope;
 	}
 
+	bool getListStatus() {
+		return isList;
+	}
+
+	std::vector<std::string> getValueStringList() {
+		return valueStringList;
+	}
+
+	void addToList(std::string nValue) {
+		valueStringList.push_back(nValue);
+	}
+
+	std::string getValueAtIndex(int index) {
+		std::string value = "";
+		try {
+			value = valueStringList.at(index);
+		}
+		catch (std::out_of_range) {
+			warnings.push_back(warnStr + " " + std::to_string(index) + " is out of range.");
+		}
+
+		return value;
+	}
+
+
+	int getListSize() {
+		return valueStringList.size();
+	}
+
 
 private:
 	int scope;
@@ -141,6 +172,8 @@ private:
 	bool bValue = true;
 	std::string sValue = "";
 	std::string valueString = "";
+	std::vector<std::string> valueStringList;
+	bool isList = false;
 
 	//This sets the precision on the value string for doubles
 	void setPrecision() {
@@ -879,7 +912,7 @@ void directVarConstructor(std::string name, std::string type, std::string value,
 		return;
 	}
 
-	var_map.emplace(name, Cmmvariable(type, value, scope));
+	var_map.emplace(name, Cmmvariable(type, value, scope, false));
 }
 
 //Calling this function will kill all the variables of whatever scope has been passed.
@@ -904,6 +937,7 @@ void updateVar(line thisLine, std::unordered_map<std::string, Cmmvariable>& var_
 
 	bool doesVarExist = false;
 	bool isExpressionVar = false;
+	bool isVarList = false;
 
 	//If an equal sign was found set the left to varname and the right to expression
 	size_t found = thisLine.lineStr.find("=");
@@ -916,12 +950,12 @@ void updateVar(line thisLine, std::unordered_map<std::string, Cmmvariable>& var_
 		for (int i = found + 1; i < thisLine.lineStr.size(); i++) {
 			expression += thisLine.lineStr[i];
 		}
-
 	}
 
 	//make sure that varname exists in the map and then set the bool to true. if it doesnt create a warning
 	if (var_map.find(varName) != var_map.end()) {
 		doesVarExist = true;
+		isVarList = var_map.at(varName).getListStatus();
 	}
 	else {
 		warnings.push_back(warnStr + " " + varName + " is not an existing variable");
@@ -935,7 +969,6 @@ void updateVar(line thisLine, std::unordered_map<std::string, Cmmvariable>& var_
 	if (doesVarExist) {
 		//FOR STRING
 		if (var_map.at(varName).getType() == Cmmvariable::getTypes().at(4)) {
-
 			if (isExpressionVar) {
 				var_map.at(varName).updateValue(var_map.at(expression).getValueString());
 			}
@@ -978,6 +1011,38 @@ void updateVar(line thisLine, std::unordered_map<std::string, Cmmvariable>& var_
 	}
 }
 
+void initializeList(line thisLine, std::unordered_map<std::string, Cmmvariable>& var_map, std::string listName) {
+
+	std::string expression = "";
+	std::string listSize, listVals;
+	bool doingSize = true;
+
+	//If an equal sign was found set the left to varname and the right to expression
+	size_t found = thisLine.lineStr.find("=");
+	if (found != std::string::npos) {
+		for (int i = found + 1; i < thisLine.lineStr.size(); i++) {
+			expression += thisLine.lineStr[i];
+		}
+	}
+
+	for (int i = 0; i < expression.size(); i++) {
+		if (expression[i] == ',') {
+			doingSize = false;
+			i++;
+		}
+		if (doingSize) {
+			listSize += expression[i];
+		}
+		else {
+			listVals += expression[i];
+		}
+	}
+
+	for (int i = 0; i < stoi(listSize); i++) {
+		var_map.at(listName).addToList(listVals);
+	}
+}
+
 //This function will create a new variable
 void createVar(line thisLine, std::string type, std::unordered_map<std::string, Cmmvariable>& var_map, int scope) {
 
@@ -985,25 +1050,56 @@ void createVar(line thisLine, std::string type, std::unordered_map<std::string, 
 	std::string varName = "";
 	bool defaultDec = true;
 	int equalLocation = 0;
+	bool isList = false;
+
+	if (thisLine.lineStr.substr(3, 4) == "list") {
+		isList = true;
+	}
 
 	//this finds the var name
-	for (int i = 3; i < thisLine.lineStr.size(); i++) {
-		if (thisLine.lineStr[i] == '=') {
-			equalLocation = i;
-			defaultDec = false;
-			for (int j = 3; j < i; j++) {
-				varName += thisLine.lineStr[j];
+	if (!isList) {
+		for (int i = 3; i < thisLine.lineStr.size(); i++) {
+			if (thisLine.lineStr[i] == '=') {
+				equalLocation = i;
+				defaultDec = false;
+				for (int j = 3; j < i; j++) {
+					varName += thisLine.lineStr[j];
+				}
 			}
+			dVarName += thisLine.lineStr[i];
 		}
-		dVarName += thisLine.lineStr[i];
-	}
-
-	if (defaultDec) {
-		var_map.emplace(dVarName, Cmmvariable(type, scope));
 	}
 	else {
+		for (int i = 7; i < thisLine.lineStr.size(); i++) {
+			if (thisLine.lineStr[i] == '=') {
+				equalLocation = i;
+				defaultDec = false;
+				for (int j = 7; j < i; j++) {
+					varName += thisLine.lineStr[j];
+				}
+			}
+			dVarName += thisLine.lineStr[i];
+		}
+	}
 
-		thisLine.lineStr.erase(0, 3);
+	thisLine.lineStr.erase(0, 3);
+
+	if (defaultDec) {
+		//The variable name was a bad word
+		if (isBadWord(dVarName)) {
+			warnings.push_back(warnStr + " variable name was invalid");
+			return;
+		}
+
+		//The variable name already exists
+		if (var_map.find(dVarName) != var_map.end()) {
+			warnings.push_back(warnStr + " variable already exists");
+				return;
+		}
+
+		var_map.emplace(dVarName, Cmmvariable(type, scope, isList));
+	}
+	else {
 
 		//The variable name was a bad word
 		if (isBadWord(varName)) {
@@ -1017,11 +1113,13 @@ void createVar(line thisLine, std::string type, std::unordered_map<std::string, 
 			return;
 		}
 
-
-
-		var_map.emplace(varName, Cmmvariable(type, scope));
-		updateVar(thisLine, var_map);
-
+		var_map.emplace(varName, Cmmvariable(type, scope, isList));
+		if (!isList) {
+			updateVar(thisLine, var_map);
+		}
+		else {
+			initializeList(thisLine, var_map, varName);
+		}
 	}
 }
 
@@ -1270,8 +1368,14 @@ int main() {
 	}
 
 	//This section is for debugging. If uncommented it will display all the variables, name/type/value to the terminal
-	//for (auto elem : var_map) {
-	//	std::cout << "Name: " << elem.first << "\tType: " << elem.second.getType() << "\tValue: " << elem.second.getValueString() << "\tScope: " << elem.second.getScope() << std::endl;
-	//}
-
+	/*for (auto elem : var_map) {
+		if (elem.second.getListStatus()) {
+			std::cout << "List: " << elem.first << std::endl;
+			for (auto list : elem.second.getValueStringList()) {
+				std::cout << list << " ";
+			}
+			std::cout << std::endl;
+		}
+		std::cout << "Name: " << elem.first << "\tType: " << elem.second.getType() << "\tValue: " << elem.second.getValueString() << "\tScope: " << elem.second.getScope() << std::endl;
+	}*/
 }
