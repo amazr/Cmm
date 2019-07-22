@@ -142,7 +142,18 @@ public:
 	}
 
 	void addToList(std::string nValue) {
-		valueStringList.push_back(nValue);
+		updateValue(nValue);
+		valueStringList.push_back(valueString);
+	}
+
+	void updateList(std::string index, std::string nValue) {
+		updateValue(nValue);
+		try {
+			valueStringList.at(stoi(index)) = valueString;
+		}
+		catch (std::out_of_range) {
+			warnings.push_back(warnStr + " " + index + " is out of range.");
+		}
 	}
 
 	std::string getValueAtIndex(int index) {
@@ -938,6 +949,7 @@ void updateVar(line thisLine, std::unordered_map<std::string, Cmmvariable>& var_
 	bool doesVarExist = false;
 	bool isExpressionVar = false;
 	bool isVarList = false;
+	std::string index = "";
 
 	//If an equal sign was found set the left to varname and the right to expression
 	size_t found = thisLine.lineStr.find("=");
@@ -951,6 +963,29 @@ void updateVar(line thisLine, std::unordered_map<std::string, Cmmvariable>& var_
 			expression += thisLine.lineStr[i];
 		}
 	}
+
+	int varNameEnd = 0;
+	bool gettingIndex = false;
+	for (int i = 0; i < varName.size(); i++) {
+		if (varName[i] == '[') {
+			isVarList = true;
+			gettingIndex = true;
+			varNameEnd = i;
+			i++;
+		}
+		if (varName[i] == ']') {
+			gettingIndex = false;
+		}
+		if (gettingIndex) {
+			index += varName[i];
+		}
+	}
+
+	if (isVarList) {
+		varName = varName.substr(0, varNameEnd);
+	}
+
+
 
 	//make sure that varname exists in the map and then set the bool to true. if it doesnt create a warning
 	if (var_map.find(varName) != var_map.end()) {
@@ -967,50 +1002,90 @@ void updateVar(line thisLine, std::unordered_map<std::string, Cmmvariable>& var_
 	}
 
 	if (doesVarExist) {
-		//FOR STRING
+		//FOR STRING -- List supported
 		if (var_map.at(varName).getType() == Cmmvariable::getTypes().at(4)) {
 			if (isExpressionVar) {
-				var_map.at(varName).updateValue(var_map.at(expression).getValueString());
+				if (isVarList) {
+					var_map.at(varName).updateList(index, var_map.at(expression).getValueString());
+				}
+				else {
+					var_map.at(varName).updateValue(var_map.at(expression).getValueString());
+				}
 			}
 			else {
 				//Searches through the var location and var name vectors in the line struct and inserts them into the literal
 				for (int i = 0; i < thisLine.varNameLocations.size(); i++) {
 					thisLine.literal.insert(thisLine.varNameLocations.at(i), var_map.at(thisLine.vars.at(i)).getValueString());
 				}
-
-				var_map.at(varName).updateValue(thisLine.literal);
+				if (isVarList) {
+					var_map.at(varName).updateList(index, thisLine.literal);
+				}
+				else {
+					var_map.at(varName).updateValue(thisLine.literal);
+				}
 			}
 		}
 		//FOR CHAR
 		else if (var_map.at(varName).getType() == Cmmvariable::getTypes().at(2)) {
 			if (isExpressionVar) {
-				var_map.at(varName).updateValue(var_map.at(expression).getValueString());
+				if (isVarList) {
+					var_map.at(varName).updateList(index, var_map.at(expression).getValueString());
+				}
+				else {
+					var_map.at(varName).updateValue(var_map.at(expression).getValueString());
+				}
 			}
 			else {
-				var_map.at(varName).updateValue(expression);
+				if (isVarList) {
+					var_map.at(varName).updateList(index, expression);
+				}
+				else {
+					var_map.at(varName).updateValue(expression);
+				}
 			}
 		}
-		//FOR INTEGER AND DECIMAL
+		//FOR INTEGER AND DECIMAL -- List Supported
 		else if (var_map.at(varName).getType() == Cmmvariable::getTypes().at(0) || var_map.at(varName).getType() == Cmmvariable::getTypes().at(1)) {
 			if (isExpressionVar) {
-				var_map.at(varName).updateValue(var_map.at(expression).getValueString());
+				if (isVarList) {
+					var_map.at(varName).updateList(index, var_map.at(expression).getValueString());
+				}
+				else {
+					var_map.at(varName).updateValue(var_map.at(expression).getValueString());
+				}
 			}
 			else {
-				var_map.at(varName).updateValue(calculate(expression, var_map.at(varName).getType(), var_map));
+				if (isVarList) {
+					var_map.at(varName).updateList(index, calculate(expression, var_map.at(varName).getType(), var_map));
+				}
+				else {
+					var_map.at(varName).updateValue(calculate(expression, var_map.at(varName).getType(), var_map));
+				}
 			}
 		}
-		//FOR BOOLEAN 
+		//FOR BOOLEAN -- List supported
 		else if (var_map.at(varName).getType() == Cmmvariable::getTypes().at(3)) {
 			if (isExpressionVar) {
-				var_map.at(varName).updateValue(var_map.at(expression).getValueString());
+				if (isVarList) {
+					var_map.at(varName).updateList(index, var_map.at(expression).getValueString());
+				}
+				else {
+					var_map.at(varName).updateValue(var_map.at(expression).getValueString());
+				}
 			}
 			else {
-				var_map.at(varName).updateValue(expression);
+				if (isVarList) {
+					var_map.at(varName).updateList(index, expression);
+				}
+				else {
+					var_map.at(varName).updateValue(expression);
+				}
 			}
 		}
 	}
 }
 
+//This will initialize a list
 void initializeList(line thisLine, std::unordered_map<std::string, Cmmvariable>& var_map, std::string listName) {
 
 	std::string expression = "";
@@ -1213,7 +1288,6 @@ void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariab
 			}
 		}
 
-
 		//This chunk turns a loop off if it needs to be turned off or it sets the do-while back to the start of the loop
 		if (nestedLoopCounter != -1) {
 			if (loops.at(nestedLoopCounter).doingLoop) {
@@ -1229,7 +1303,6 @@ void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariab
 							access = lines.at(lineNum).scope;
 							scopeVarDestroyer(var_map, loops.at(nestedLoopCounter).loopScope);
 							if (nestedLoopCounter > 0) {
-								//var_map.erase(loops.at(nestedLoopCounter).iterator);
 								loops.pop_back();
 								nestedLoopCounter--;
 							}
@@ -1330,7 +1403,6 @@ void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariab
 			running = false;
 		}
 
-
 	} while (running);
 }
 
@@ -1368,7 +1440,7 @@ int main() {
 	}
 
 	//This section is for debugging. If uncommented it will display all the variables, name/type/value to the terminal
-	/*for (auto elem : var_map) {
+	for (auto elem : var_map) {
 		if (elem.second.getListStatus()) {
 			std::cout << "List: " << elem.first << std::endl;
 			for (auto list : elem.second.getValueStringList()) {
@@ -1377,5 +1449,5 @@ int main() {
 			std::cout << std::endl;
 		}
 		std::cout << "Name: " << elem.first << "\tType: " << elem.second.getType() << "\tValue: " << elem.second.getValueString() << "\tScope: " << elem.second.getScope() << std::endl;
-	}*/
+	}
 }
