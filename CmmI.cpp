@@ -10,11 +10,17 @@ std::vector<std::string> warnings;
 std::string warnStr;
 
 //Struct for each individual line in the cmm file
+struct lineIndexLocations {
+	int matchingVarsIndex;
+	std::string index;
+};
+
 struct line {
 	std::string lineStr;
 	std::string literal = "";
 	std::vector<int> varNameLocations;
 	std::vector<std::string> vars;
+	std::vector<lineIndexLocations> varIndexs;
 	int num;
 	int scope = -1;
 };
@@ -154,25 +160,67 @@ public:
 		catch (std::out_of_range) {
 			warnings.push_back(warnStr + " " + index + " is out of range.");
 		}
+		catch (std::invalid_argument) {
+			warnings.push_back(warnStr + " Possible incorrectly coded list. listName[index] is standard.");
+		}
 	}
 
-	std::string getValueAtIndex(int index) {
+	std::string getValueAtIndex(std::string index) {
 		std::string value = "";
 		try {
-			value = valueStringList.at(index);
+			value = valueStringList.at(stoi(index));
 		}
 		catch (std::out_of_range) {
-			warnings.push_back(warnStr + " " + std::to_string(index) + " is out of range.");
+			warnings.push_back(warnStr + " " + index + " is out of range.");
+		}
+		catch (std::invalid_argument) {
+			warnings.push_back(warnStr + " Possible incorrectly coded list. listName[index] is standard.");
 		}
 
 		return value;
 	}
 
-
 	int getListSize() {
 		return valueStringList.size();
 	}
 
+	//This function will take a varName and if it is a list will return its name
+	static std::string getListName(std::string varName) {
+		int varNameEnd = 0;
+		bool isVarList = false;
+		for (int i = 0; i < varName.size(); i++) {
+			if (varName[i] == '[') {
+				isVarList = true;
+				varNameEnd = i;
+				break;
+			}
+		}
+
+		if (isVarList) {
+			varName = varName.substr(0, varNameEnd);
+		}
+		return varName;
+	}
+
+	//This function will return an index string, if it is not a list then the index will be blank
+	static std::string getListIndex(std::string varName) {
+		std::string index = "";
+		bool gettingIndex = false;
+
+		for (int i = 0; i < varName.size(); i++) {
+			if (varName[i] == '[') {
+				gettingIndex = true;
+				i++;
+			}
+			if (varName[i] == ']') {
+				gettingIndex = false;
+			}
+			if (gettingIndex) {
+				index += varName[i];
+			}
+		}
+		return index;
+	}
 
 private:
 	int scope;
@@ -281,6 +329,7 @@ class Keyword {
 public:
 
 	//This function expects a line and var_map. The literal stores variable names, not their value
+	//Currently supports lists as well, display a list with no index will display the last changed result or default if nothing was changed
 	static void display(line thisLine, std::unordered_map<std::string, Cmmvariable> var_map) {
 
 		std::string tempVarName = "";
@@ -290,14 +339,24 @@ public:
 
 		//Searches through the var location and var name vectors in the line struct and inserts them into the literal
 		for (int i = 0; i < thisLine.varNameLocations.size(); i++ ) {
-			thisLine.literal.insert(thisLine.varNameLocations.at(i) + nameLength, var_map.at(thisLine.vars.at(i)).getValueString());
-			nameLength += var_map.at(thisLine.vars.at(i)).getValueString().size() - 1;
+			if (var_map.at(thisLine.vars.at(i)).getListStatus()) {
+				for (auto lil : thisLine.varIndexs) {
+					if (lil.matchingVarsIndex == i)
+					thisLine.literal.insert(thisLine.varNameLocations.at(i) + nameLength, var_map.at(thisLine.vars.at(i)).getValueAtIndex(lil.index));
+					nameLength += var_map.at(thisLine.vars.at(i)).getValueAtIndex(lil.index).size() - 1;
+				}
+			}
+			else {
+				thisLine.literal.insert(thisLine.varNameLocations.at(i) + nameLength, var_map.at(thisLine.vars.at(i)).getValueString());
+				nameLength += var_map.at(thisLine.vars.at(i)).getValueString().size() - 1;
+			}
 		}
 		
 		std::cout << thisLine.literal;
 	}
 
 	//This function reads the next line and stores the lines value into that variable
+	//Currently supports reading to lists
 	static void read(std::string lineStr, std::unordered_map<std::string, Cmmvariable>& var_map) {
 
 		std::string varName;
@@ -305,11 +364,19 @@ public:
 			varName += lineStr[i];
 		}
 
+		std::string index = Cmmvariable::getListIndex(varName);
+		varName = Cmmvariable::getListName(varName);
+
 		if (var_map.find(varName) != var_map.end()) {
 			std::string temp;
 			std::cin >> temp;
 
-			var_map.at(varName).updateValue(temp);
+			if (var_map.at(varName).getListStatus()) {
+				var_map.at(varName).updateList(index, temp);
+			}
+			else {
+				var_map.at(varName).updateValue(temp);
+			}
 		}
 		else {
 			warnings.push_back(warnStr + " attempted to read to a variable that does not exist");
@@ -655,6 +722,8 @@ public:
 	static std::vector<std::string> getKeywords() {
 		return createKeywords();
 	}
+
+
 private:
 
 	//This function will store all of the keywords
@@ -831,10 +900,19 @@ line createStrLiteral(line thisLine, std::unordered_map<std::string, Cmmvariable
 			else {
 				gettingVar = false;
 				varName.erase(varName.begin());
+
+				std::string index = Cmmvariable::getListIndex(varName);
+				varName = Cmmvariable::getListName(varName);
 				
 				if (var_map.find(varName) != var_map.end()) {
 					thisLine.varNameLocations.push_back(thisLine.literal.size() + thisLine.varNameLocations.size());
 					thisLine.vars.push_back(varName);
+					if (var_map.at(varName).getListStatus()) {
+						lineIndexLocations lil;
+						lil.matchingVarsIndex = thisLine.vars.size() - 1;
+						lil.index = index;
+						thisLine.varIndexs.push_back(lil);
+					}
 				}
 				else {
 					warnings.push_back(warnStr + " " + varName + " is not an existing variable");
@@ -964,28 +1042,8 @@ void updateVar(line thisLine, std::unordered_map<std::string, Cmmvariable>& var_
 		}
 	}
 
-	int varNameEnd = 0;
-	bool gettingIndex = false;
-	for (int i = 0; i < varName.size(); i++) {
-		if (varName[i] == '[') {
-			isVarList = true;
-			gettingIndex = true;
-			varNameEnd = i;
-			i++;
-		}
-		if (varName[i] == ']') {
-			gettingIndex = false;
-		}
-		if (gettingIndex) {
-			index += varName[i];
-		}
-	}
-
-	if (isVarList) {
-		varName = varName.substr(0, varNameEnd);
-	}
-
-
+	index = Cmmvariable::getListIndex(varName);
+	varName = Cmmvariable::getListName(varName);
 
 	//make sure that varname exists in the map and then set the bool to true. if it doesnt create a warning
 	if (var_map.find(varName) != var_map.end()) {
