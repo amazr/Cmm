@@ -884,10 +884,15 @@ void directVarConstructor(std::string name, std::string type, std::string value,
 
 //Calling this function will kill all the variables of whatever scope has been passed.
 void scopeVarDestroyer(std::unordered_map<std::string, Cmmvariable>& var_map, int scope) {
+	std::vector<std::string> erase_keys;
 	for (auto elem : var_map) {
 		if (elem.second.getScope() == scope) {
-			var_map.erase(elem.first);
+			erase_keys.push_back(elem.first);
 		}
+	}
+
+	for (auto elem : erase_keys) {
+		var_map.erase(elem);
 	}
 }
 
@@ -998,24 +1003,6 @@ void createVar(line thisLine, std::string type, std::unordered_map<std::string, 
 	}
 	else {
 
-		/*std::string varValue = "";
-		for (int i = equalLocation + 1; i < thisLine.lineStr.size(); i++) {
-			varValue += thisLine.lineStr[i];
-		}
-
-		//if the value is another variable than set this variable to that variable
-		if (var_map.find(varValue) != var_map.end()) {
-			varValue = var_map.at(varValue).getValueString();
-		}
-		//if the type is a string set the value to the string literal for that line
-		else if (type == "str") {
-			//Searches through the var location and var name vectors in the line struct and inserts them into the literal
-			for (int i = 0; i < thisLine.varNameLocations.size(); i++) {
-				thisLine.literal.insert(thisLine.varNameLocations.at(i), var_map.at(thisLine.vars.at(i)).getValueString());
-			}
-			varValue = thisLine.literal;
-		}*/
-		
 		thisLine.lineStr.erase(0, 3);
 
 		//The variable name was a bad word
@@ -1030,11 +1017,11 @@ void createVar(line thisLine, std::string type, std::unordered_map<std::string, 
 			return;
 		}
 
-		//thisLine.lineStr.erase();
-		std::cout << thisLine.lineStr[0] << std::endl;
+
+
 		var_map.emplace(varName, Cmmvariable(type, scope));
 		updateVar(thisLine, var_map);
-		//var_map.emplace(varName, Cmmvariable(type, varValue, scope));
+
 	}
 }
 
@@ -1115,14 +1102,20 @@ void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariab
 			access = newScope;
 		}
 
+		if (lineNum > 0) {
+			if (lines.at(lineNum).scope < lines.at(lineNum - 1).scope) {
+				scopeVarDestroyer(var_map, lines.at(lineNum - 1).scope);
+			}
+		}
+
 		//This chunk turns a loop off if it needs to be turned off or it sets the do-while back to the start of the loop
 		if (nestedLoopCounter != -1) {
 			if (loops.at(nestedLoopCounter).doingLoop) {
-				//std::cout << "loop begin: " << loops.at(nestedLoopCounter).begin << " loop end: " << loops.at(nestedLoopCounter).end << std::endl;
+
 				if (access < loops.at(nestedLoopCounter).loopScope) {
 					access = loops.at(nestedLoopCounter).loopScope;
 				}
-				//std::cout << "access: " << access << " scope: " << lines.at(lineNum).scope << std::endl;
+
 				if (loops.at(nestedLoopCounter).loopScope > lines.at(lineNum).scope) {
 					//When a from loop reaches its ending line
 					if (loops.at(nestedLoopCounter).loopType == "from") {
