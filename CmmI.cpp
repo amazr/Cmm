@@ -28,14 +28,16 @@ struct line {
 //Struct that stores information about a loop
 struct Loop {
 	bool doingLoop = false;
+	bool complex = false;
 	int begin = 0;
 	int end = 0;
 	int lineBegin = 0;
 	int lineEnd = 0;
 	int loopScope = 0;
 	int counter = 0;
-	std::string iterator = "i";
+	std::string iterator;
 	std::string expression;
+	std::string increment;
 	std::string loopType = "";
 };
 
@@ -677,6 +679,30 @@ public:
 		}
 	}
 
+	//This function will check fill out some extra information for the loop if it needs it, like if the iterator is 'i += 2'
+	static void complexLoopCreater(Loop& loop) {
+		std::string newIterator;
+		for (int i = 0; i < loop.iterator.size(); i++) {
+			if (loop.iterator[i] == '=' || (loop.iterator[i] == '+' && (loop.iterator[i + 1] == '+' || loop.iterator[i + 1] == '=')) || (loop.iterator[i] == '-' && (loop.iterator[i + 1] == '-' || loop.iterator[i + 1] == '='))) {
+				loop.complex = true;
+				loop.increment += loop.iterator[i];
+				i++;
+				if (loop.iterator[i] == '+' || loop.iterator[i] == '=' || loop.iterator[i] == '-') {
+					loop.increment += loop.iterator[i];
+					i++;
+				}
+			}
+			if (!loop.complex) {
+				newIterator += loop.iterator[i];
+			}
+			else if (loop.complex) {
+				loop.expression += loop.iterator[i];
+			}
+
+		}
+		loop.iterator = newIterator;
+	}
+
 	//This is the function for doing loops
 	//This function currently supports lists
 	static Loop startLoop(std::string line, std::unordered_map<std::string, Cmmvariable>& var_map) {
@@ -1040,7 +1066,7 @@ void directVarConstructor(std::string name, std::string type, std::string value,
 void scopeVarDestroyer(std::unordered_map<std::string, Cmmvariable>& var_map, int scope) {
 	std::vector<std::string> erase_keys;
 	for (auto elem : var_map) {
-		if (elem.second.getScope() == scope) {
+		if (elem.second.getScope() >= scope) {
 			erase_keys.push_back(elem.first);
 		}
 	}
@@ -1385,10 +1411,34 @@ void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariab
 					access = loops.at(nestedLoopCounter).loopScope;
 				}
 
+				//When the loop reaches the last line of the loop its gonna increment and do all of this stuff
 				if (loops.at(nestedLoopCounter).loopScope > lines.at(lineNum).scope) {
-					//When a from loop reaches its ending line
+					scopeVarDestroyer(var_map, loops.at(nestedLoopCounter).loopScope + 1);
 					if (loops.at(nestedLoopCounter).loopType == "from") {
-						if (loops.at(nestedLoopCounter).counter == loops.at(nestedLoopCounter).end) {
+						std::string incrementBy;
+						if (loops.at(nestedLoopCounter).complex) {
+							incrementBy = calculate(loops.at(nestedLoopCounter).expression, "int", var_map);
+							if (loops.at(nestedLoopCounter).increment == "=") {
+								loops.at(nestedLoopCounter).counter = stoi(incrementBy);
+							}
+							else if (loops.at(nestedLoopCounter).increment == "+=") {
+								loops.at(nestedLoopCounter).counter += stoi(incrementBy);
+							}
+							else if (loops.at(nestedLoopCounter).increment == "-=") {
+								loops.at(nestedLoopCounter).counter -= stoi(incrementBy);
+							}
+							else if (loops.at(nestedLoopCounter).increment == "--") {
+								loops.at(nestedLoopCounter).counter--;
+							}
+							else if (loops.at(nestedLoopCounter).increment == "++") {
+								loops.at(nestedLoopCounter).counter++;
+							}
+						}
+						else {
+							loops.at(nestedLoopCounter).counter++;
+						}
+
+						if (loops.at(nestedLoopCounter).counter > loops.at(nestedLoopCounter).end) {
 							loops.at(nestedLoopCounter).doingLoop = false;
 							access = lines.at(lineNum).scope;
 							scopeVarDestroyer(var_map, loops.at(nestedLoopCounter).loopScope);
@@ -1398,7 +1448,6 @@ void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariab
 							}
 						}
 						else {
-							loops.at(nestedLoopCounter).counter++;
 							var_map.at(loops.at(nestedLoopCounter).iterator).updateValue(std::to_string(loops.at(nestedLoopCounter).counter));
 							lineNum = loops.at(nestedLoopCounter).lineBegin;
 							continue;
@@ -1470,6 +1519,8 @@ void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariab
 
 				if (loops.at(nestedLoopCounter).loopType == "from") {
 					loops.at(nestedLoopCounter).counter = loops.at(nestedLoopCounter).begin;
+					Keyword::complexLoopCreater(loops.at(nestedLoopCounter));
+					scopeVarDestroyer(var_map, loops.at(nestedLoopCounter).loopScope);
 					directVarConstructor(loops.at(nestedLoopCounter).iterator, "int", std::to_string(loops.at(nestedLoopCounter).begin), var_map, lines.at(lineNum).scope + 1);
 				}
 
@@ -1491,6 +1542,12 @@ void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariab
 		//If the program has read the final line then terminate the readline loop
 		if (lineNum == lines.size()) {
 			running = false;
+			if (loops.at(nestedLoopCounter).doingLoop) {
+				line emptyLine;
+				emptyLine.lineStr = "";
+				lines.push_back(emptyLine);
+				running = true;
+			}
 		}
 
 	} while (running);
@@ -1530,7 +1587,7 @@ int main() {
 	}
 
 	//This section is for debugging. If uncommented it will display all the variables, name/type/value to the terminal
-	for (auto elem : var_map) {
+	/*for (auto elem : var_map) {
 		if (elem.second.getListStatus()) {
 			std::cout << "List: " << elem.first << std::endl;
 			for (auto list : elem.second.getValueStringList()) {
@@ -1539,5 +1596,5 @@ int main() {
 			std::cout << std::endl;
 		}
 		std::cout << "Name: " << elem.first << "\tType: " << elem.second.getType() << "\tValue: " << elem.second.getValueString() << "\tScope: " << elem.second.getScope() << std::endl;
-	}
+	}*/
 }
