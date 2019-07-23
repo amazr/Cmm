@@ -174,7 +174,7 @@ public:
 			warnings.push_back(warnStr + " " + index + " is out of range.");
 		}
 		catch (std::invalid_argument) {
-			warnings.push_back(warnStr + " Possible incorrectly coded list. listName[index] is standard.");
+			warnings.push_back(warnStr + " Possible incorrectly coded list, index entered is " + index + ". listName[index] is standard.");
 		}
 
 		return value;
@@ -203,7 +203,7 @@ public:
 	}
 
 	//This function will return an index string, if it is not a list then the index will be blank
-	static std::string getListIndex(std::string varName) {
+	static std::string getListIndex(std::string varName, std::unordered_map<std::string, Cmmvariable> var_map) {
 		std::string index = "";
 		bool gettingIndex = false;
 
@@ -219,6 +219,23 @@ public:
 				index += varName[i];
 			}
 		}
+		
+		try {
+			int tempI = stoi(index);
+		}
+		catch (std::invalid_argument) {
+			std::string tempVarName = getListName(index);
+			if (var_map.find(tempVarName) != var_map.end()) {
+				if (var_map.at(tempVarName).getListStatus()) {
+					std::string tempIndex = getListIndex(tempVarName, var_map);
+					index = var_map.at(tempVarName).getValueAtIndex(tempIndex);
+				}
+				else {
+					index = var_map.at(tempVarName).getValueString();
+				}
+			}
+		}
+
 		return index;
 	}
 
@@ -357,14 +374,14 @@ public:
 
 	//This function reads the next line and stores the lines value into that variable
 	//Currently supports reading to lists
-	static void read(std::string lineStr, std::unordered_map<std::string, Cmmvariable>& var_map) {
+	static void read(std::string lineStr, std::unordered_map<std::string, Cmmvariable> var_map) {
 
 		std::string varName;
 		for (int i = 4; i < lineStr.size(); i++) {
 			varName += lineStr[i];
 		}
 
-		std::string index = Cmmvariable::getListIndex(varName);
+		std::string index = Cmmvariable::getListIndex(varName, var_map);
 		varName = Cmmvariable::getListName(varName);
 
 		if (var_map.find(varName) != var_map.end()) {
@@ -384,12 +401,14 @@ public:
 	}
 	
 	//This function returns true if an if statement evaluated to true; else it returns false
+	//This function calls the evaluate function below
 	static bool conditionalIF(line thisLine, std::unordered_map<std::string, Cmmvariable>& var_map) {
 		//The if code is 1
 		return evaluate(thisLine, var_map, 1);
 	}
 
 	//This function takes a line, code and var_map and compares two values on either side of an expression.
+	//Evaluate has support for lists coded
 	static bool evaluate(line thisLine, std::unordered_map<std::string, Cmmvariable>& var_map, int code) {
 		//the code is representing what keyword needs to use evaluate
 		// 1-> if	2-> elif	3-> loop while
@@ -407,6 +426,7 @@ public:
 		}
 		
 		std::string leftValue, rightValue;
+		std::string leftIndex, rightIndex;
 		bool doingLeftValue = true;
 		bool notEqual = false;
 		bool greater = false;
@@ -471,29 +491,41 @@ public:
 		}
 
 		//If either of the values are actually variables
-		if (var_map.find(leftValue) != var_map.end()) {
+		leftIndex = Cmmvariable::getListIndex(leftValue, var_map);
+		std::string tempLeft = Cmmvariable::getListName(leftValue);
+
+		if (var_map.find(tempLeft) != var_map.end()) {
+			leftValue = tempLeft;
+		
 			if (var_map.at(leftValue).getType() == "dec") {
-				leftValue = wholeDecChecker(leftValue, var_map);
 				doubleCompare = true;
 			}
 			else if (var_map.at(leftValue).getType() == "int") {
 				intCompare = true;
-				leftValue = var_map.at(leftValue).getValueString();
 			}
 
+			if (var_map.at(leftValue).getListStatus()) {
+				leftValue = var_map.at(leftValue).getValueAtIndex(leftIndex);
+			}
 			else {
 				leftValue = var_map.at(leftValue).getValueString();
 			}
 		}
 
-		if (var_map.find(rightValue) != var_map.end()) {
+		rightIndex = Cmmvariable::getListIndex(rightValue, var_map);
+		std::string tempRight = Cmmvariable::getListName(rightValue);
+
+		if (var_map.find(tempRight) != var_map.end()) {
+			rightValue = tempRight;
 			if (var_map.at(rightValue).getType() == "dec") {
-				rightValue = wholeDecChecker(rightValue, var_map);
 				doubleCompare = true;
 			}
 			else if (var_map.at(rightValue).getType() == "int") {
 				intCompare = true;
-				rightValue = var_map.at(rightValue).getValueString();
+			}
+
+			if (var_map.at(rightValue).getListStatus()) {
+				rightValue = var_map.at(rightValue).getValueAtIndex(rightIndex);
 			}
 			else {
 				rightValue = var_map.at(rightValue).getValueString();
@@ -646,6 +678,7 @@ public:
 	}
 
 	//This is the function for doing loops
+	//This function currently supports lists
 	static Loop startLoop(std::string line, std::unordered_map<std::string, Cmmvariable>& var_map) {
 		//loop from 0-12: i will do a for loop
 
@@ -679,33 +712,52 @@ public:
 					loopIteratorLocation = i + 1;
 					break;
 				}
-				if (line[i] == '-') {
+				if (line[i] == '-' && rangeFloor !=  "") {
+					i++;
 					isFloor = false;
 				}
-				if (isFloor && line[i] != '-') {
+				if (isFloor) {
 					rangeFloor += line[i];
 				}
-				else if (!isFloor && line[i] != '-') {
+				else if (!isFloor) {
 					rangeCeil += line[i];
 				}
 			}
 
 			//If either of the range numbers are an int value then set the range numbers to that variables value
-			if (var_map.find(rangeFloor) != var_map.end()) {
+			std::string indexFloor = Cmmvariable::getListIndex(rangeFloor, var_map);
+			std::string tempFloor = Cmmvariable::getListName(rangeFloor);
+
+			if (var_map.find(tempFloor) != var_map.end()) {
+				rangeFloor = tempFloor;
 				if (var_map.at(rangeFloor).getType() == "int") {
-					rangeFloor = var_map.at(rangeFloor).getValueString();
+					if (var_map.at(rangeFloor).getListStatus()) {
+						rangeFloor = var_map.at(rangeFloor).getValueAtIndex(indexFloor);
+					}
+					else {
+						rangeFloor = var_map.at(rangeFloor).getValueString();
+					}
 				}
 			}
-			if (var_map.find(rangeCeil) != var_map.end()) {
+			std::string indexCeil = Cmmvariable::getListIndex(rangeCeil, var_map);
+			std::string tempCeil = Cmmvariable::getListName(rangeCeil);
+
+			if (var_map.find(tempCeil) != var_map.end()) {
+				rangeCeil = tempCeil;
 				if (var_map.at(rangeCeil).getType() == "int") {
-					rangeCeil = var_map.at(rangeCeil).getValueString();
+					if (var_map.at(rangeCeil).getListStatus()) {
+						rangeCeil = var_map.at(rangeCeil).getValueAtIndex(indexCeil);
+					}
+					else {
+						rangeCeil = var_map.at(rangeCeil).getValueString();
+					}
 				}
 			}
 
 			for (int i = loopIteratorLocation; i < line.size(); i++) {
 				loopIteratorName += line[i];
 			}
-			
+
 			loop.begin = stoi(rangeFloor);
 			loop.end = stoi(rangeCeil);
 			loop.iterator = loopIteratorName;
@@ -738,26 +790,6 @@ private:
 		return keywords;
 	}
 
-	//If the dec is a whole number this will return it completed whole-ified to compare its value
-	static std::string wholeDecChecker(std::string leftValue, std::unordered_map<std::string, Cmmvariable>& var_map) {
-			bool isWhole = true;
-			bool afterDot = false;
-			for (int i = 0; i < leftValue.size(); i++) {
-				if (afterDot) {
-					if (leftValue[i] != '0') {
-						isWhole = false;
-						break;
-					}
-				}
-				if (leftValue[i] == '.') {
-					afterDot = true;
-				}
-			}
-			if (isWhole) {
-				leftValue = std::to_string(stoi(leftValue));
-			}
-				return leftValue;
-	}
 };
 
 //This function takes two vectors that make up an expressions terms and operators and returns a string of the result FOR INTEGER MATH
@@ -901,7 +933,7 @@ line createStrLiteral(line thisLine, std::unordered_map<std::string, Cmmvariable
 				gettingVar = false;
 				varName.erase(varName.begin());
 
-				std::string index = Cmmvariable::getListIndex(varName);
+				std::string index = Cmmvariable::getListIndex(varName, var_map);
 				varName = Cmmvariable::getListName(varName);
 				
 				if (var_map.find(varName) != var_map.end()) {
@@ -1042,7 +1074,7 @@ void updateVar(line thisLine, std::unordered_map<std::string, Cmmvariable>& var_
 		}
 	}
 
-	index = Cmmvariable::getListIndex(varName);
+	index = Cmmvariable::getListIndex(varName, var_map);
 	varName = Cmmvariable::getListName(varName);
 
 	//make sure that varname exists in the map and then set the bool to true. if it doesnt create a warning
