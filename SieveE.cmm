@@ -1,0 +1,20 @@
+bol list isPrime = 100, true
+int last = 99
+int sqrtLast = 9
+isPrime[0] = false
+isPrime[1] = false
+
+loop from 2-sqrtLast: i
+	if isPrime[i] = true
+		int start
+		start = i * 2
+		loop from start-last: j+=i
+			isPrime[j] = false
+
+loop from 0-last: i
+	if isPrime[i] = true
+		display :i: " is prime!" .
+	if isPrime[i] = false
+		display :i: " is not prime!" .
+
+		
