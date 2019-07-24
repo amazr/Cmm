@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <utility>
+#include <bits/stdc++.h>
 
 std::vector<std::string> warnings;
 //warnings.push_back(warnStr + " whatever you need the warning to say");
@@ -546,6 +547,28 @@ public:
 		//std::cout << "left: " << leftValue << " right: " << rightValue << std::endl;
 		//std::cout << "g: " << greater << " ge: " << greaterE << " l: " << lesser << " le: " << lesserE << " ne: " << notEqual << std::endl;
 		//This is the main stuff right here... returning true if the stuffs TRUE
+		if (intCompare) {
+			try {
+				int temp = stoi(leftValue);
+				int temp2 = stoi(rightValue);
+			}
+			catch (std::invalid_argument) {
+				warnings.push_back(warnStr + " Invalid type comparison");
+				return false;
+			}
+		}
+		else if (doubleCompare) {
+			try {
+				int temp = stod(leftValue);
+				int temp2 = stod(rightValue);
+			}
+			catch (std::invalid_argument) {
+				warnings.push_back(warnStr + " Invalid type comparison");
+				return false;
+			}
+		}
+
+
 		if (greater) {
 			if (greaterE) {
 				if (intCompare) {
@@ -1379,6 +1402,11 @@ void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariab
 	//This int is what level the line has access to. If a conditional evaluates true, the program would gain a level of access
 	int access = 0;
 
+	if (lines.size() == 0) {
+		warnings.push_back("WARNING: Command or file typed incorrectly or does not exist.");
+		return;
+	}
+
 	do {
 		
 		//This will determine the scope of the line and set the lines vector scope 
@@ -1542,11 +1570,13 @@ void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariab
 		//If the program has read the final line then terminate the readline loop
 		if (lineNum == lines.size()) {
 			running = false;
-			if (loops.at(nestedLoopCounter).doingLoop) {
-				line emptyLine;
-				emptyLine.lineStr = "";
-				lines.push_back(emptyLine);
-				running = true;
+			if (nestedLoopCounter != -1) {
+				if (loops.at(nestedLoopCounter).doingLoop) {
+					line emptyLine;
+					emptyLine.lineStr = "";
+					lines.push_back(emptyLine);
+					running = true;
+				}
 			}
 		}
 
@@ -1572,18 +1602,40 @@ void openFile(std::string fileName, std::unordered_map<std::string, Cmmvariable>
 
 int main() {
 
-	std::unordered_map<std::string, Cmmvariable> var_map;
+	bool running = true;
 
-	std::string fileName = "";
-	std::cout << "Welcome to C-- v2" << std::endl << "Enter file name to run" << std::endl;
-	std::cin >> fileName;
-	std::cout << "\n\n";
-	openFile(fileName, var_map);
+	system("clear");
+	std::cout << "\nWelcome to C--";
 
-	//This will display all created warnings to the terminal at the end of the program
-	std::cout << "\n\n";
-	for (auto elem : warnings) {
-		std::cout << elem << std::endl;
+	while (running) {
+		std::unordered_map<std::string, Cmmvariable> var_map;
+		std::cout << "\n\n";
+		std::string fileName = "";
+		std::cout << "Enter file name to run, 'edit' to edit, or 'quit' to quit" << std::endl;
+		std::cin >> fileName;
+		std::cout << "\n\n";
+
+		if (fileName == "quit") {
+			running = false;
+		}
+		else if (fileName == "edit") {
+			std::cout << "Enter a file name to edit(vim): " << std::endl;
+			std::cin >> fileName;
+			fileName = "vim " + fileName;
+			const char* editCommand = fileName.c_str();
+			std::cout << "command is: " << editCommand << std::endl;
+			system(editCommand);
+		}
+		else {
+			openFile(fileName, var_map);
+		}
+
+		//This will display all created warnings to the terminal at the end of the program
+		std::cout << "\n\n";
+		for (auto elem : warnings) {
+			std::cout << elem << std::endl;
+		}
+		warnings.clear();
 	}
 
 	//This section is for debugging. If uncommented it will display all the variables, name/type/value to the terminal
