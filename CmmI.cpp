@@ -42,6 +42,12 @@ struct Loop {
 	std::string loopType = "";
 };
 
+struct Conditional {
+	//1 -> if 2 -> elseif 3 -> else
+	int type = 1;
+	bool didRun;
+};
+
 //An object of this class represents a variable in the program. Meant to be stored in a umap called var_map
 //contains a static vector of datatypes
 class Cmmvariable {
@@ -100,6 +106,7 @@ public:
 		}
 		//boolean
 		else if (type == getTypes().at(3)) {
+
 			if (value == "true" || value == "1" || value == "t") {
 				bValue = true;
 				valueString = "true";
@@ -356,14 +363,16 @@ public:
 		bool gettingVarName = false;	
 		int varStartLocation, varStrSize;
 		int nameLength = 0;
+		
 
 		//Searches through the var location and var name vectors in the line struct and inserts them into the literal
 		for (int i = 0; i < thisLine.varNameLocations.size(); i++ ) {
 			if (var_map.at(thisLine.vars.at(i)).getListStatus()) {
 				for (auto lil : thisLine.varIndexs) {
-					if (lil.matchingVarsIndex == i)
-					thisLine.literal.insert(thisLine.varNameLocations.at(i) + nameLength, var_map.at(thisLine.vars.at(i)).getValueAtIndex(lil.index));
-					nameLength += var_map.at(thisLine.vars.at(i)).getValueAtIndex(lil.index).size() - 1;
+					if (lil.matchingVarsIndex == i) {
+						thisLine.literal.insert(thisLine.varNameLocations.at(i) + nameLength, var_map.at(thisLine.vars.at(i)).getValueAtIndex(lil.index));
+						nameLength += var_map.at(thisLine.vars.at(i)).getValueAtIndex(lil.index).size() - 1;
+					}
 				}
 			}
 			else {
@@ -377,7 +386,7 @@ public:
 
 	//This function reads the next line and stores the lines value into that variable
 	//Currently supports reading to lists
-	static void read(std::string lineStr, std::unordered_map<std::string, Cmmvariable> var_map) {
+	static void read(std::string lineStr, std::unordered_map<std::string, Cmmvariable>& var_map) {
 
 		std::string varName;
 		for (int i = 4; i < lineStr.size(); i++) {
@@ -386,7 +395,7 @@ public:
 
 		std::string index = Cmmvariable::getListIndex(varName, var_map);
 		varName = Cmmvariable::getListName(varName);
-
+		
 		if (var_map.find(varName) != var_map.end()) {
 			std::string temp;
 			std::cin >> temp;
@@ -406,15 +415,20 @@ public:
 	//This function returns true if an if statement evaluated to true; else it returns false
 	//This function calls the evaluate function below
 	static bool conditionalIF(line thisLine, std::unordered_map<std::string, Cmmvariable>& var_map) {
-		//The if code is 1
+		//If code is one
 		return evaluate(thisLine, var_map, 1);
+	}
+	
+	static bool conditionalElseIF(line thisLine, std::unordered_map<std::string, Cmmvariable>& var_map) {
+		//Code is 2
+		return evaluate(thisLine, var_map, 2);
 	}
 
 	//This function takes a line, code and var_map and compares two values on either side of an expression.
 	//Evaluate has support for lists coded
 	static bool evaluate(line thisLine, std::unordered_map<std::string, Cmmvariable>& var_map, int code) {
 		//the code is representing what keyword needs to use evaluate
-		// 1-> if	2-> elif	3-> loop while
+		// 1-> if	2-> elif/else	3-> loop while
 		//this is very horrible... 
 		switch (code) {
 			case 1: 
@@ -836,6 +850,9 @@ private:
 		keywords.push_back("loop");
 		keywords.push_back("from");
 		keywords.push_back("while");
+		keywords.push_back("elif");
+		keywords.push_back("else");
+		keywords.push_back("gonext");
 		return keywords;
 	}
 
@@ -1018,6 +1035,7 @@ line removeWhitespace(line thisLine, std::unordered_map<std::string, Cmmvariable
 
 	//IMPORTANT: If this is not called, all string literals will have NO whitespace. It is important to use line. strLiteral when reffering to literals
 	thisLine = createStrLiteral(thisLine, var_map);
+	
 
 	for (int i = 0; i < thisLine.lineStr.size(); i++) {
 		if (thisLine.lineStr[i] == ' ') {
@@ -1359,7 +1377,7 @@ int checkForKeyWords(line thisLine, std::unordered_map<std::string, Cmmvariable>
 			//IF 
 			else if (elem == keywords.at(2)) {
 				if (Keyword::conditionalIF(thisLine, var_map)) {
-					return 2;
+					return 4;
 				}
 				else {
 					return 1;
@@ -1373,6 +1391,23 @@ int checkForKeyWords(line thisLine, std::unordered_map<std::string, Cmmvariable>
 				else {
 					return 1;
 				}
+			}
+			//ELIF
+			else if (elem == keywords.at(6)) {
+				if (Keyword::conditionalElseIF(thisLine, var_map)) {
+					return 5;
+				}
+				else {
+					return 1;
+				}
+			}
+			//ELSE
+			else if (elem == keywords.at(7)) {
+				return 6;
+			}
+			//GONEXT
+			else if (elem == keywords.at(8)) {
+				return 7;
 			}
 		}
 	}
@@ -1393,8 +1428,11 @@ void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariab
 	//This controls whether the program is currently running
 	bool running = true;
 	bool inLoop = false;
+	bool goNext = false;
 	//Loop loop;
 	std::vector<Loop> loops;
+	std::vector<Conditional> conditionals;
+	Conditional newConditional;
 	//int loopCounter = 0;
 	int nestedLoopCounter = -1;
 	//Line num is the access value for the lines vector 
@@ -1406,9 +1444,12 @@ void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariab
 		warnings.push_back("WARNING: Command or file typed incorrectly or does not exist.");
 		return;
 	}
+	line emptyLine;
+
+	lines.push_back(emptyLine);
 
 	do {
-		
+		lines.at(lineNum).num = lineNum;
 		//This will determine the scope of the line and set the lines vector scope 
 		int newScope = 0;
 		while (lines.at(lineNum).lineStr[newScope] == '\t') {
@@ -1438,9 +1479,11 @@ void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariab
 				if (access < loops.at(nestedLoopCounter).loopScope) {
 					access = loops.at(nestedLoopCounter).loopScope;
 				}
+				lines.at(lineNum).varNameLocations.clear();
 
 				//When the loop reaches the last line of the loop its gonna increment and do all of this stuff
-				if (loops.at(nestedLoopCounter).loopScope > lines.at(lineNum).scope) {
+				if (loops.at(nestedLoopCounter).loopScope > lines.at(lineNum).scope || goNext) {
+					goNext = false;
 					scopeVarDestroyer(var_map, loops.at(nestedLoopCounter).loopScope + 1);
 					if (loops.at(nestedLoopCounter).loopType == "from") {
 						std::string incrementBy;
@@ -1467,6 +1510,7 @@ void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariab
 						}
 
 						if (loops.at(nestedLoopCounter).counter > loops.at(nestedLoopCounter).end) {
+
 							loops.at(nestedLoopCounter).doingLoop = false;
 							access = lines.at(lineNum).scope;
 							scopeVarDestroyer(var_map, loops.at(nestedLoopCounter).loopScope);
@@ -1476,6 +1520,7 @@ void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariab
 							}
 						}
 						else {
+
 							var_map.at(loops.at(nestedLoopCounter).iterator).updateValue(std::to_string(loops.at(nestedLoopCounter).counter));
 							lineNum = loops.at(nestedLoopCounter).lineBegin;
 							continue;
@@ -1497,6 +1542,7 @@ void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariab
 				}
 			}
 		}
+
 
 		//If the line is blank OR if the program does not have access to something at this scope then skip the line
 		if (lines.at(lineNum).lineStr.size() == 0 || access < lines.at(lineNum).scope) {
@@ -1538,6 +1584,11 @@ void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariab
 		//If the code was 2 up the access
 		if (keywordCode >= 2) {
 			access = access + 1;
+			if (keywordCode == 7) {
+				goNext = true;
+				continue;
+			}
+
 			if (keywordCode == 3) {
 				Loop newLoop = Keyword::startLoop(lines.at(lineNum).lineStr, var_map);
 				loops.push_back(newLoop);
@@ -1557,7 +1608,60 @@ void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariab
 					loops.at(nestedLoopCounter).doingLoop = Keyword::evaluate(lines.at(lineNum), var_map, 3);
 				}
 			}
+			else {
+				if (keywordCode == 4) {
+					newConditional.didRun = true;
+					newConditional.type = 1;
+				}
+				else if (keywordCode == 5) {
+					newConditional.didRun = true;
+					if (conditionals.size() > 0) {
+						if (conditionals.at(conditionals.size() - 1).type == 1) {
+							if (conditionals.at(conditionals.size() - 1).didRun) {
+								newConditional.didRun = false;
+								access--;
+							}
+							else {
+								newConditional.didRun = true;
+							}
+						}
+					}
+					else {
+						newConditional.didRun = false;
+					}
+					newConditional.type = 2;
+				}
+				else if (keywordCode == 6) {
+					if (conditionals.size() > 0) {
+						if (conditionals.at(conditionals.size() - 1).type == 1) {
+							if (conditionals.at(conditionals.size() - 1).didRun) {
+								newConditional.didRun = false;
+							}
+							else {
+								newConditional.didRun = true;
+							}
+						}
+						else if (conditionals.at(conditionals.size() - 1).type == 2) {
+							for (int i = conditionals.size() - 1; i >= 0; i--) {
+								if (conditionals.at(i).type == 1) {
+									for (int j = i; j < conditionals.size(); j++) {
+										if (conditionals.at(j).didRun) {
+											newConditional.didRun = false;
+										}
+									}
+								}
+							}
+						}
+					}
+					newConditional.type = 3;
+				}
+				if (!newConditional.didRun) {
+					access--;
+				}
+				conditionals.push_back(newConditional);
+			}
 		}
+
 
 		//This will update a variable
 		if (!wasVarCreated && keywordCode == 0 && lines.at(lineNum).lineStr.size() != 0) {
@@ -1570,14 +1674,6 @@ void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariab
 		//If the program has read the final line then terminate the readline loop
 		if (lineNum == lines.size()) {
 			running = false;
-			if (nestedLoopCounter != -1) {
-				if (loops.at(nestedLoopCounter).doingLoop) {
-					line emptyLine;
-					emptyLine.lineStr = "";
-					lines.push_back(emptyLine);
-					running = true;
-				}
-			}
 		}
 
 	} while (running);
@@ -1611,7 +1707,7 @@ int main() {
 		std::unordered_map<std::string, Cmmvariable> var_map;
 		std::cout << "\n\n";
 		std::string fileName = "";
-		std::cout << "Enter file name to run, 'edit' to edit, or 'quit' to quit" << std::endl;
+		std::cout << "Enter file name to run, 'edit' to edit, 'view' to view,  or 'quit' to quit" << std::endl;
 		std::cin >> fileName;
 		std::cout << "\n\n";
 
@@ -1622,6 +1718,13 @@ int main() {
 			std::cout << "Enter a file name to edit(vim): " << std::endl;
 			std::cin >> fileName;
 			fileName = "vim " + fileName;
+			const char* editCommand = fileName.c_str();
+			system(editCommand);
+		}
+		else if (fileName == "view") {
+			std::cout << "Enter a file name to view: " << std::endl;
+			std::cin >> fileName;
+			fileName = "cat " + fileName;
 			const char* editCommand = fileName.c_str();
 			system(editCommand);
 		}
