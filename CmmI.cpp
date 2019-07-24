@@ -1623,7 +1623,6 @@ int main() {
 			std::cin >> fileName;
 			fileName = "vim " + fileName;
 			const char* editCommand = fileName.c_str();
-			std::cout << "command is: " << editCommand << std::endl;
 			system(editCommand);
 		}
 		else {
