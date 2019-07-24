@@ -969,6 +969,8 @@ line createStrLiteral(line thisLine, std::unordered_map<std::string, Cmmvariable
 		return thisLine;
 	}
 
+	thisLine.varNameLocations.clear();
+
 	//This is some mumbo jumbo to search through the line find literals
 	for (int i = 0; i < thisLine.lineStr.size(); i++) {
 
@@ -1479,7 +1481,6 @@ void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariab
 				if (access < loops.at(nestedLoopCounter).loopScope) {
 					access = loops.at(nestedLoopCounter).loopScope;
 				}
-				lines.at(lineNum).varNameLocations.clear();
 
 				//When the loop reaches the last line of the loop its gonna increment and do all of this stuff
 				if (loops.at(nestedLoopCounter).loopScope > lines.at(lineNum).scope || goNext) {
@@ -1670,7 +1671,7 @@ void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariab
 
 		//This increments the line vector 
 		lineNum++;
-
+;
 		//If the program has read the final line then terminate the readline loop
 		if (lineNum == lines.size()) {
 			running = false;
