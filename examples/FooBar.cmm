@@ -1,0 +1,19 @@
+int upto
+display "Please enter a number: "
+read upto
+int result
+bol notNum = false
+
+loop from 1-upto: i
+	result = i % 3
+	if result = 0
+		display "Foo"
+		notNum = true
+	result = i % 5
+	if result = 0
+		display "Bar"
+		notNum = true
+	if notNum = false
+		display :i: 
+	display .
+	notNum = false

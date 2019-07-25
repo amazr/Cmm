@@ -1,0 +1,27 @@
+str stop = "y"
+int numToCheck = 0
+bol isPrime
+int checkSubOne
+int result
+
+loop while stop = "y"
+	isPrime = true
+	display "Enter a num: "
+	read numToCheck
+	checkSubOne = numToCheck - 1
+	if numToCheck > 2
+		loop from 2-checkSubOne:i
+			
+			result = numToCheck % i
+			if result = 0
+				isPrime = false
+	if numToCheck < 2
+		isPrime = false
+	display :numToCheck: " "
+	if isPrime = true
+		display "is prime" .
+	if isPrime = false
+		display "is not prime" .
+	display "Go again? (y/n): " 
+	read stop
+

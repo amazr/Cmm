@@ -1,0 +1,7 @@
+
+loop from 1-2:i
+	display :i: .
+	loop from 1-10: j
+		display "   " :j: .
+
+display "The program ran successfully" .

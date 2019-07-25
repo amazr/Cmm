@@ -1,0 +1,20 @@
+int numToRead
+int total
+int add
+int failNum = 150
+
+display "Welcome to the Homework Point Sum Program!".
+display "How many assignments did you complete? "
+read numToRead
+
+loop from 1-numToRead: i
+	display "Enter Score " :i: ": "
+	read add
+	total = total + add
+
+display "Homework Point Sum is: " :total: .
+
+if total < failNum
+	display "You failed".
+if total >= failNum
+	display "You Passed".
