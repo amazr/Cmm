@@ -1358,7 +1358,7 @@ void createVar(line thisLine, std::string type, std::unordered_map<std::string, 
 }
 
 //This function checks for keywords and calls the required functions for them to work
-int checkForKeyWords(line thisLine, std::unordered_map<std::string, Cmmvariable>& var_map) {
+int checkForKeyWords(line thisLine, std::unordered_map<std::string, Cmmvariable>& var_map, std::vector<Conditional>& conditionals) {
 
 	//CODE: 1->display 2->read 3->if
 	std::vector<std::string> keywords = Keyword::getKeywords();
@@ -1378,10 +1378,16 @@ int checkForKeyWords(line thisLine, std::unordered_map<std::string, Cmmvariable>
 			}
 			//IF 
 			else if (elem == keywords.at(2)) {
+				Conditional newConditional;
+				newConditional.type = 1;
 				if (Keyword::conditionalIF(thisLine, var_map)) {
+					newConditional.didRun = true;
+					conditionals.push_back(newConditional);
 					return 4;
 				}
 				else {
+					newConditional.didRun = false;
+					conditionals.push_back(newConditional);
 					return 1;
 				}
 			}
@@ -1396,15 +1402,25 @@ int checkForKeyWords(line thisLine, std::unordered_map<std::string, Cmmvariable>
 			}
 			//ELIF
 			else if (elem == keywords.at(6)) {
+				std::cout << "found it" << std::endl;
+				Conditional newConditional;
+				newConditional.type = 2;
 				if (Keyword::conditionalElseIF(thisLine, var_map)) {
+					newConditional.didRun = true;
+					conditionals.push_back(newConditional);
 					return 5;
 				}
 				else {
+					newConditional.didRun = false;
+					conditionals.push_back(newConditional);
 					return 1;
 				}
 			}
 			//ELSE
 			else if (elem == keywords.at(7)) {
+				Conditional newConditional;
+				newConditional.type = 3;
+				conditionals.push_back(newConditional);
 				return 6;
 			}
 			//GONEXT
@@ -1434,7 +1450,6 @@ void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariab
 	//Loop loop;
 	std::vector<Loop> loops;
 	std::vector<Conditional> conditionals;
-	Conditional newConditional;
 	//int loopCounter = 0;
 	int nestedLoopCounter = -1;
 	//Line num is the access value for the lines vector 
@@ -1445,13 +1460,14 @@ void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariab
 	if (lines.size() == 0) {
 		warnings.push_back("WARNING: Command or file typed incorrectly or does not exist.");
 		return;
-	}
+	} 
 	line emptyLine;
 
 	lines.push_back(emptyLine);
 
 	do {
 		lines.at(lineNum).num = lineNum;
+
 		//This will determine the scope of the line and set the lines vector scope 
 		int newScope = 0;
 		while (lines.at(lineNum).lineStr[newScope] == '\t') {
@@ -1580,11 +1596,11 @@ void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariab
 		}
 
 		//This function will check for a keyword and execute its stuff
-		keywordCode = checkForKeyWords(lines.at(lineNum), var_map);
+		keywordCode = checkForKeyWords(lines.at(lineNum), var_map, conditionals);
 
 		//If the code was 2 up the access
 		if (keywordCode >= 2) {
-			access = access + 1;
+			access++;
 			if (keywordCode == 7) {
 				goNext = true;
 				continue;
@@ -1609,60 +1625,46 @@ void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariab
 					loops.at(nestedLoopCounter).doingLoop = Keyword::evaluate(lines.at(lineNum), var_map, 3);
 				}
 			}
-			else {
-				if (keywordCode == 4) {
-					newConditional.didRun = true;
-					newConditional.type = 1;
-				}
-				else if (keywordCode == 5) {
-					newConditional.didRun = true;
-					if (conditionals.size() > 0) {
-						if (conditionals.at(conditionals.size() - 1).type == 1) {
-							if (conditionals.at(conditionals.size() - 1).didRun) {
-								newConditional.didRun = false;
+			if (conditionals.size() > 0) {
+				if (keywordCode == 5) {
+					for (int i = conditionals.size() - 2; i >= 0; i--) {
+						if (conditionals.at(i).type == 1) {
+							if (conditionals.at(i).didRun) {
+								conditionals.at(conditionals.size() - 1).didRun = false;
 								access--;
 							}
 							else {
-								newConditional.didRun = true;
+								break;
 							}
 						}
+						if (conditionals.at(i).didRun) {
+							conditionals.at(conditionals.size() - 1).didRun = false;
+							access--;
+						}
 					}
-					else {
-						newConditional.didRun = false;
-					}
-					newConditional.type = 2;
 				}
 				else if (keywordCode == 6) {
-					if (conditionals.size() > 0) {
-						if (conditionals.at(conditionals.size() - 1).type == 1) {
-							if (conditionals.at(conditionals.size() - 1).didRun) {
-								newConditional.didRun = false;
+					for (int i = conditionals.size() - 2; i >= 0; i--) {
+						if (conditionals.at(i).type == 1) {
+							if (conditionals.at(i).didRun) {
+								conditionals.at(conditionals.size() - 1).didRun = false;
+								access--;
 							}
 							else {
-								newConditional.didRun = true;
+								break;
 							}
 						}
-						else if (conditionals.at(conditionals.size() - 1).type == 2) {
-							for (int i = conditionals.size() - 1; i >= 0; i--) {
-								if (conditionals.at(i).type == 1) {
-									for (int j = i; j < conditionals.size(); j++) {
-										if (conditionals.at(j).didRun) {
-											newConditional.didRun = false;
-										}
-									}
-								}
-							}
+						if (conditionals.at(i).didRun) {
+							conditionals.at(conditionals.size() - 1).didRun = false;
+							access--;
 						}
 					}
-					newConditional.type = 3;
 				}
-				if (!newConditional.didRun) {
-					access--;
-				}
-				conditionals.push_back(newConditional);
+			}
+			else if (keywordCode == 6 || keywordCode == 5) {
+				access--;
 			}
 		}
-
 
 		//This will update a variable
 		if (!wasVarCreated && keywordCode == 0 && lines.at(lineNum).lineStr.size() != 0) {
@@ -1727,6 +1729,7 @@ int main() {
 			std::cin >> fileName;
 			fileName = "cat " + fileName;
 			const char* editCommand = fileName.c_str();
+			std::cout << "\n\n";
 			system(editCommand);
 		}
 		else {
