@@ -1,0 +1,9 @@
+//This file utilizes the 'gonext' command to only display the odd numbers from 0-10
+
+int result
+
+loop from 0-10: i
+	result = i % 2
+	if result = 0
+		gonext
+	display :i: .

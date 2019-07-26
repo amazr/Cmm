@@ -1,0 +1,27 @@
+//This file is showing off appending to the end of lists, looping through them, and updating there values
+
+int list x
+
+append_list x, 1
+append_list x, 4
+append_list x ,5
+
+display "The list x | "
+loop from 0-2: i
+	display "  " :i: ": " :x[i]:
+display . "The downward list x | "
+loop from 2-0: i--
+	display "  " :i: ": " :x[i]:
+
+display .
+
+dec list y = 10,0
+int counter = 0
+loop from 0-4: i += 2
+	y[i] = x[counter]
+	counter = counter + 1
+
+display "The list y | "
+loop from 0-9: i
+	display "  " :i: ": " :y[i]: 
+display .

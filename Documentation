@@ -125,6 +125,23 @@ Included Functions:
         -loop while running = true
         - display "Looping indefinitely".
         /Looping indefinitely (this will go on forever)
+  
+  GONEXT
+	This command functions similar to continue in c++.
+	It will force the loop to move on to its next iteration.
+		-loop from 1-2:i
+		-	if i = 1
+		-		gonext
+		-	display :i:.
+		/2
+
+  APPEND_LIST
+	This command will append a value to a new index (at the end of) a list
+		-int list x
+		//x is an empty list
+		-append_list x , 20
+		-append_list x , 203
+		//x[0] = 20 , x[1] = 203
         
 MATH
   C-- reads expressions from left to right and there is currently no way to change the order of operations.

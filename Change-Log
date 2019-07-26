@@ -1,0 +1,14 @@
+Version 1 of C-- was released on 7/25/2019
+Current version: 1.1 
+Released 7/26/2019
+
+
+Updates in v1.1 -
+	-Added a function called 'append_list' to append a value to the end of a list
+		-int list x
+		-append_list x , 12
+		-append_list x , 20
+		//This will append a value to the end of a list. x[0] would be 12 and x[1] would be 20
+	-Added some warnings for incorrectly referencing a list, like out of bounds exceptions.
+	-Fixed a bug in descending from loops.
+
