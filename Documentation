@@ -6,7 +6,7 @@ All output examples will be preceded by a '/' character
 
 HOW TO RUN:
   In your file there will be two '.sh' files 'connectGIT.sh' and 'update.sh'.
-  Whatever build you have will be stable.
+  Whatever build you have is stable, however, there is a chance that there might be a newer version with new features and bug fixes available.
   If it is your first time updating enter the command 'sh connectGIT.sh' and then 'sh update.sh'. Update will compile the main file 'CmmI.cpp' to 'cmm'.
   C-- can be written using any text editor. I like to save my programs in the form of 'fileName.cmm' but 'fileName.txt' works as well
 
@@ -14,7 +14,7 @@ HOW TO RUN:
 VARIABLES:
   In C-- there are 5 variables, and any of them can be made into lists (see end of section)
     int, dec, bol, str, chr
-  They function, for the most part, as their equivalent variables in other languages
+  For the most part they function the same as their equivalent variables in other languages
   The code to declare a variable is structured as follows:
     -int varName = 12
     or
