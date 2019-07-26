@@ -1,0 +1,169 @@
+Welcome! 
+Below is an general overview of how to program in C--
+If you are looking for examples, see examples directory
+All examples of code will be preceded by a '-' character
+All output examples will be preceded by a '/' character
+
+HOW TO RUN:
+  In your file there will be two '.sh' files 'connectGIT.sh' and 'update.sh'.
+  Whatever build you have will be stable.
+  If it is your first time updating enter the command 'sh connectGIT.sh' and then 'sh update.sh'. Update will compile the main file 'CmmI.cpp' to 'cmm'.
+  C-- can be written using any text editor. I like to save my programs in the form of 'fileName.cmm' but 'fileName.txt' works as well
+
+
+VARIABLES:
+  In C-- there are 5 variables, and any of them can be made into lists (see end of section)
+    int, dec, bol, str, chr
+  They function, for the most part, as their equivalent variables in other languages
+  The code to declare a variable is structured as follows:
+    -int varName = 12
+    or
+    -int varName
+    The second line of code will set 'varName' to a default value. Generally defaults are either 0 or ""
+    You can set a varaibles using math, a single value, or another variable.
+  Updating a variable works in an expected manner:
+    -varName = 14
+  
+  INT
+    A variable type for storing whole numbers.
+    Default = 0
+  DEC
+    A variable type for storing non-whole numbers (is essentially a wrapper for the type double).
+    Currently precision is automatically set when displaying type dec. I'm sorry if that becomes annoying.
+    Default = 0
+  BOL
+    A variable type for storing true or false values.
+    Can be set using 'true', 'false', 't', 'f', '1', '0'
+    Default = true
+  CHR
+    A variable for storing a single character
+    When declaring a chr you should only enter one character. If you enter more than one it will throw a warning and set the chr to the first character.
+      -chr firstLetter = dog
+      firstLetter will be equal to 'd', and there will be a warning at the end of your program
+    Default = ''
+  STR
+    A varaible for storing strings (essentially a less useful wrapper of c++ strings)
+    Declaring a str is different than other variables because it stores that lines string literal or the value of another variable.
+    In C-- each line will have its own literal. Anything inside of quotes, a '.' outside of quotes, or a variable wrapped in colons will be added to a lines literal.
+      -str dog = "dog"
+      -str dogType = "fluffy " :dog: .
+      The value stored in 'dogType' is "fluffy dog\n"
+      -str dog = I wish I was a correct value
+      This will set 'dog' to ""
+  LISTS
+    A list is a wrapper for c++ vectors, so a list is dynamic.
+    A list can be declared two ways"
+      -int list x
+      -int list x = 10,100
+      The first declaration creates an empty list called 'x'
+      The second declaration creates a list called 'x' where size is 10 and all the values are 100
+    Updating a list:
+      -x[2] = 12
+    Added an index to lists is currently a WIP
+    
+Included Functions:
+  In C-- there are a few included functions. You can think of this as its standard library.
+  Some of these functions introduce the concept of scope. 
+  Scope in C-- functions the same as it does in C++
+  C-- handles scope by using tabs, if you see a \t in a code example, that just means there is a tab there
+  
+  DISPLAY
+    display will take the lines literal (see STR) and display it to the console.
+      -str h = "hello"
+      -display :h: " world" .
+      /hello world
+      /
+  READ
+    read will read a value entered into the console and store it in a variable of your choosing.
+      -str fNmame
+      -display "Please enter your first name: "
+      -read fName
+      -display "Hello " :fName: "!".
+      /Please enter your first name: alex
+      /Hello alex
+      /
+      
+  IF
+    if works as a very simlpe conditional that can compare two values of any type
+    You can try and compare any datatype to any other datatype, but sometimes this might not work
+      Will Work:
+        -str x = "12"
+        -int y = 12
+        -if x = y
+        - display "true"
+        /true
+      Will not work:
+        -str x = "dog"
+        -int x = 12
+        -if x = y
+        - display "true"
+        /Invalid type comparison warning
+    if statements can compare things in multiple ways.
+      =, !=, >, >=, <, <=
+      -if var1 != var2
+      - do stuff
+  
+  ELSE
+    An else statement must follow an if statement.
+    The code inside the scope of the else statement will only run if the preceding if statement did NOT run.
+
+  LOOP
+    There are two types of loops in C--, from and while, so this will be split into two sections
+    
+    FROM
+      This loop will loop from one number to another number
+        -loop from 1-12: i
+        This will loop from 1 to 12 using the default increment, i = i + 1
+        -loop from 1-13: i += 2
+        This will loop from 1 to 12 incrementing i by 2 every loop, the above loop stops when i is 12
+      You can choose any name for the loops iterator, it doesn't have to be i, but it will always be an 'int'
+      
+    WHILE
+      This will loop while some sort of statement is true
+      This usese the same logic as the conditional, and thus can evalute the same expressions
+        -bol running
+        -loop while running = true
+        - display "Looping indefinitely".
+        /Looping indefinitely (this will go on forever)
+        
+MATH
+  C-- reads expressions from left to right and there is currently no way to change the order of operations.
+  All dec values will be rounded down if you attempt to store them in an int variable
+  
+  int x = 12
+  x = x + 2
+    //x is 14
+  dec y = 2.5
+  x = y + x
+    //x is 16
+  y = y + x
+    //y is 18.5
+  y = y % 2
+    //Warning will be thrown
+  x = x % 2
+    //x is 0
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
