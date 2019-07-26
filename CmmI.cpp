@@ -14,6 +14,8 @@ std::string warnStr;
 struct lineIndexLocations {
 	int matchingVarsIndex;
 	std::string index;
+	bool isIndexVar = false;
+	std::string indexVar;
 };
 
 struct line {
@@ -30,6 +32,7 @@ struct line {
 struct Loop {
 	bool doingLoop = false;
 	bool complex = false;
+	bool goingUp = true;
 	int begin = 0;
 	int end = 0;
 	int lineBegin = 0;
@@ -157,11 +160,13 @@ public:
 		return valueStringList;
 	}
 
+	//This will append variables to the end of the list 
 	void addToList(std::string nValue) {
 		updateValue(nValue);
 		valueStringList.push_back(valueString);
 	}
 
+	//This update a value in a list at a specific index
 	void updateList(std::string index, std::string nValue) {
 		updateValue(nValue);
 		try {
@@ -229,7 +234,7 @@ public:
 				index += varName[i];
 			}
 		}
-		
+
 		try {
 			int tempI = stoi(index);
 		}
@@ -246,6 +251,44 @@ public:
 			}
 		}
 
+		return index;
+	}
+
+	//This is an overloaded function specifically for the createStrLiteral. This helps in handling updating the index value when looping.
+	static std::string getListIndex(std::string varName, std::unordered_map<std::string, Cmmvariable> var_map, lineIndexLocations& lil) {
+		std::string index = "";
+		bool gettingIndex = false;
+
+		for (int i = 0; i < varName.size(); i++) {
+			if (varName[i] == '[') {
+				gettingIndex = true;
+				i++;
+			}
+			if (varName[i] == ']') {
+				gettingIndex = false;
+			}
+			if (gettingIndex) {
+				index += varName[i];
+			}
+		}
+		
+		try {
+			int tempI = stoi(index);
+		}
+		catch (std::invalid_argument) {
+			std::string tempVarName = getListName(index);
+			if (var_map.find(tempVarName) != var_map.end()) {
+				if (var_map.at(tempVarName).getListStatus()) {
+					std::string tempIndex = getListIndex(tempVarName, var_map);
+					index = var_map.at(tempVarName).getValueAtIndex(tempIndex);
+				}
+				else {
+					index = var_map.at(tempVarName).getValueString();
+					lil.isIndexVar = true;
+					lil.indexVar = tempVarName;
+				}
+			}
+		}
 		return index;
 	}
 
@@ -351,7 +394,7 @@ private:
 	}
 };
 
-//This class is meant to be static and used as a container for all of the keyword functions
+//This class is meant to be static and used as a container for all of the keyword functions and other stuff
 class Keyword {
 public:
 
@@ -360,6 +403,7 @@ public:
 	static void display(line thisLine, std::unordered_map<std::string, Cmmvariable> var_map) {
 
 		std::string tempVarName = "";
+		std::string tempListString = "";
 		bool gettingVarName = false;	
 		int varStartLocation, varStrSize;
 		int nameLength = 0;
@@ -370,8 +414,14 @@ public:
 			if (var_map.at(thisLine.vars.at(i)).getListStatus()) {
 				for (auto lil : thisLine.varIndexs) {
 					if (lil.matchingVarsIndex == i) {
-						thisLine.literal.insert(thisLine.varNameLocations.at(i) + nameLength, var_map.at(thisLine.vars.at(i)).getValueAtIndex(lil.index));
-						nameLength += var_map.at(thisLine.vars.at(i)).getValueAtIndex(lil.index).size() - 1;
+						if (lil.isIndexVar) {
+							thisLine.literal.insert(thisLine.varNameLocations.at(i) + nameLength, var_map.at(thisLine.vars.at(i)).getValueAtIndex(var_map.at(lil.indexVar).getValueString()));
+							nameLength += var_map.at(thisLine.vars.at(i)).getValueAtIndex(lil.index).size() - 1;
+						}
+						else {
+							thisLine.literal.insert(thisLine.varNameLocations.at(i) + nameLength, var_map.at(thisLine.vars.at(i)).getValueAtIndex(lil.index));
+							nameLength += var_map.at(thisLine.vars.at(i)).getValueAtIndex(lil.index).size() - 1;
+						}
 					}
 				}
 			}
@@ -824,6 +874,11 @@ public:
 			loop.begin = stoi(rangeFloor);
 			loop.end = stoi(rangeCeil);
 			loop.iterator = loopIteratorName;
+
+			if (loop.begin > loop.end) {
+				loop.goingUp = false;
+			}
+
 			return loop;
 
 		}
@@ -833,10 +888,37 @@ public:
 		}
 	}
 
+	//This function appends a value to the back of the list
+	static void append_list(std::string line, std::unordered_map<std::string, Cmmvariable>& var_map) {
+		bool isValid = false;
+		std::string listName = "";
+		std::string newValue = "";
+		for (int i = 11; i < line.size(); i++) {
+			if (line[i] == ',') {
+				isValid = true;
+				i++;
+			}
+			if (!isValid) {
+				listName += line[i];
+			}
+			if (isValid) {
+				newValue += line[i];
+			}
+		}
+
+		try {
+			var_map.at(listName).addToList(newValue);
+		}
+		catch (std::out_of_range) {
+			warnings.push_back(warnStr + " Something went wrong, list name entered: " + listName);
+		}
+	}
+
 	//This function will return a string vector of all the implemented keywords
 	static std::vector<std::string> getKeywords() {
 		return createKeywords();
 	}
+
 
 
 private:
@@ -853,6 +935,7 @@ private:
 		keywords.push_back("elif");
 		keywords.push_back("else");
 		keywords.push_back("gonext");
+		keywords.push_back("append_list");
 		return keywords;
 	}
 
@@ -862,7 +945,15 @@ private:
 std::string integerMath(std::vector<std::string> numbers, std::vector<std::string> operatorOrder, std::unordered_map<std::string, Cmmvariable>& var_map) {
 
 	int operatorCounter = 0;
-	int result = stoi(numbers.at(0));
+	int result;
+	try {
+		result = stoi(numbers.at(0));
+	}
+	catch (std::invalid_argument) {
+		warnings.push_back(warnStr + " Something unexpected happened with this expression.");
+		return "0";
+	}
+
 
 	for (int i = 1; i < numbers.size(); i++) {
 		if (operatorOrder.at(operatorCounter) == "+") {
@@ -890,7 +981,14 @@ std::string integerMath(std::vector<std::string> numbers, std::vector<std::strin
 std::string decimalMath(std::vector<std::string> numbers, std::vector<std::string> operatorOrder, std::unordered_map<std::string, Cmmvariable>& var_map) {
 
 	int operatorCounter = 0;
-	double result = stod(numbers.at(0));
+	double result;
+	try {
+		result = stod(numbers.at(0));
+	}
+	catch (std::invalid_argument) {
+		warnings.push_back(warnStr + " something unexpected happened with the expression.");
+		return "0";
+	}
 
 	for (int i = 1; i < numbers.size(); i++) {
 		if (operatorOrder.at(operatorCounter) == "+") {
@@ -941,10 +1039,23 @@ std::string calculate(std::string expression, std::string type, std::unordered_m
 
 	numbers.push_back(tempNumber);
 
+	std::string index;
 	//This will search through the numbers vector to find variable names. If one is found it will replace it with its value string
 	for (auto& elem : numbers) {
+		index = Cmmvariable::getListIndex(elem, var_map);
+		elem = Cmmvariable::getListName(elem);
 		if (var_map.find(elem) != var_map.end()) {
-			elem = var_map.at(elem).getValueString();
+			if (var_map.at(elem).getListStatus()) {
+				if (stoi(index) >= var_map.at(elem).getListSize()) {
+					warnings.push_back(warnStr + " The index " + index + " is out of the bounds of list " + elem + " of size " + std::to_string(var_map.at(elem).getListSize()));
+				}
+				else {
+					elem = var_map.at(elem).getValueAtIndex(index);
+				}
+			}
+			else {
+				elem = var_map.at(elem).getValueString();
+			}
 		}
 	}
 
@@ -970,6 +1081,7 @@ line createStrLiteral(line thisLine, std::unordered_map<std::string, Cmmvariable
 	}
 
 	thisLine.varNameLocations.clear();
+	thisLine.varIndexs.clear();
 
 	//This is some mumbo jumbo to search through the line find literals
 	for (int i = 0; i < thisLine.lineStr.size(); i++) {
@@ -1001,14 +1113,14 @@ line createStrLiteral(line thisLine, std::unordered_map<std::string, Cmmvariable
 				gettingVar = false;
 				varName.erase(varName.begin());
 
-				std::string index = Cmmvariable::getListIndex(varName, var_map);
+				lineIndexLocations lil;
+				std::string index = Cmmvariable::getListIndex(varName, var_map, lil);
 				varName = Cmmvariable::getListName(varName);
 				
 				if (var_map.find(varName) != var_map.end()) {
 					thisLine.varNameLocations.push_back(thisLine.literal.size() + thisLine.varNameLocations.size());
 					thisLine.vars.push_back(varName);
 					if (var_map.at(varName).getListStatus()) {
-						lineIndexLocations lil;
 						lil.matchingVarsIndex = thisLine.vars.size() - 1;
 						lil.index = index;
 						thisLine.varIndexs.push_back(lil);
@@ -1427,6 +1539,10 @@ int checkForKeyWords(line thisLine, std::unordered_map<std::string, Cmmvariable>
 			else if (elem == keywords.at(8)) {
 				return 7;
 			}
+			//APPEND_LIST
+			else if (elem == keywords.at(9)) {
+				return 8;
+			}
 		}
 	}
 
@@ -1467,7 +1583,6 @@ void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariab
 
 	do {
 		lines.at(lineNum).num = lineNum;
-
 		//This will determine the scope of the line and set the lines vector scope 
 		int newScope = 0;
 		while (lines.at(lineNum).lineStr[newScope] == '\t') {
@@ -1505,14 +1620,16 @@ void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariab
 					if (loops.at(nestedLoopCounter).loopType == "from") {
 						std::string incrementBy;
 						if (loops.at(nestedLoopCounter).complex) {
-							incrementBy = calculate(loops.at(nestedLoopCounter).expression, "int", var_map);
 							if (loops.at(nestedLoopCounter).increment == "=") {
+								incrementBy = calculate(loops.at(nestedLoopCounter).expression, "int", var_map);
 								loops.at(nestedLoopCounter).counter = stoi(incrementBy);
 							}
 							else if (loops.at(nestedLoopCounter).increment == "+=") {
+								incrementBy = calculate(loops.at(nestedLoopCounter).expression, "int", var_map);
 								loops.at(nestedLoopCounter).counter += stoi(incrementBy);
 							}
 							else if (loops.at(nestedLoopCounter).increment == "-=") {
+								incrementBy = calculate(loops.at(nestedLoopCounter).expression, "int", var_map);
 								loops.at(nestedLoopCounter).counter -= stoi(incrementBy);
 							}
 							else if (loops.at(nestedLoopCounter).increment == "--") {
@@ -1526,21 +1643,37 @@ void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariab
 							loops.at(nestedLoopCounter).counter++;
 						}
 
-						if (loops.at(nestedLoopCounter).counter > loops.at(nestedLoopCounter).end) {
 
-							loops.at(nestedLoopCounter).doingLoop = false;
-							access = lines.at(lineNum).scope;
-							scopeVarDestroyer(var_map, loops.at(nestedLoopCounter).loopScope);
-							if (nestedLoopCounter > 0) {
-								loops.pop_back();
-								nestedLoopCounter--;
+						if (loops.at(nestedLoopCounter).goingUp) {
+							if (loops.at(nestedLoopCounter).counter > loops.at(nestedLoopCounter).end) {
+								loops.at(nestedLoopCounter).doingLoop = false;
+								access = lines.at(lineNum).scope;
+								scopeVarDestroyer(var_map, loops.at(nestedLoopCounter).loopScope);
+								if (nestedLoopCounter > 0) {
+									loops.pop_back();
+									nestedLoopCounter--;
+								}
+							}else {
+								var_map.at(loops.at(nestedLoopCounter).iterator).updateValue(std::to_string(loops.at(nestedLoopCounter).counter));
+								lineNum = loops.at(nestedLoopCounter).lineBegin;
+								continue;
 							}
 						}
 						else {
-
-							var_map.at(loops.at(nestedLoopCounter).iterator).updateValue(std::to_string(loops.at(nestedLoopCounter).counter));
-							lineNum = loops.at(nestedLoopCounter).lineBegin;
-							continue;
+							if (loops.at(nestedLoopCounter).counter < loops.at(nestedLoopCounter).end) {
+								loops.at(nestedLoopCounter).doingLoop = false;
+								access = lines.at(lineNum).scope;
+								scopeVarDestroyer(var_map, loops.at(nestedLoopCounter).loopScope);
+								if (nestedLoopCounter > 0) {
+									loops.pop_back();
+									nestedLoopCounter--;
+								}
+							}
+							else {
+								var_map.at(loops.at(nestedLoopCounter).iterator).updateValue(std::to_string(loops.at(nestedLoopCounter).counter));
+								lineNum = loops.at(nestedLoopCounter).lineBegin;
+								continue;
+							}
 						}
 					}
 					//When a while loop reaches its ending line
@@ -1562,7 +1695,7 @@ void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariab
 
 
 		//If the line is blank OR if the program does not have access to something at this scope then skip the line
-		if (lines.at(lineNum).lineStr.size() == 0 || access < lines.at(lineNum).scope) {
+		if (lines.at(lineNum).lineStr.size() == 0 || access < lines.at(lineNum).scope || (lines.at(lineNum).lineStr[0] == '\\' && lines.at(lineNum).lineStr[1] == '\\')) {
 			//Increase the lineNum and if its equal to the size of the array then break the loop
 			lineNum++;
 			if (lineNum == lines.size()) {
@@ -1621,7 +1754,7 @@ void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariab
 				}
 
 				if (loops.at(nestedLoopCounter).loopType == "while") {
-					//This is horrible, but 3 is the code for while loops
+					//3 is the code for while loops
 					loops.at(nestedLoopCounter).doingLoop = Keyword::evaluate(lines.at(lineNum), var_map, 3);
 				}
 			}
@@ -1663,6 +1796,11 @@ void readLine(std::vector<line> lines, std::unordered_map<std::string, Cmmvariab
 			}
 			else if (keywordCode == 6 || keywordCode == 5) {
 				access--;
+			}
+
+			//append to list function
+			if (keywordCode == 8) {
+				Keyword::append_list(lines.at(lineNum).lineStr, var_map);
 			}
 		}
 
@@ -1742,17 +1880,17 @@ int main() {
 			std::cout << elem << std::endl;
 		}
 		warnings.clear();
-	}
 
-	//This section is for debugging. If uncommented it will display all the variables, name/type/value to the terminal
-	/*for (auto elem : var_map) {
-		if (elem.second.getListStatus()) {
-			std::cout << "List: " << elem.first << std::endl;
-			for (auto list : elem.second.getValueStringList()) {
-				std::cout << list << " ";
+		//This section is for debugging. If uncommented it will display all the variables, name/type/value to the terminal
+		/*for (auto elem : var_map) {
+			if (elem.second.getListStatus()) {
+				std::cout << "List: " << elem.first << std::endl;
+				for (auto list : elem.second.getValueStringList()) {
+					std::cout << list << " ";
+				}
+				std::cout << std::endl;
 			}
-			std::cout << std::endl;
-		}
-		std::cout << "Name: " << elem.first << "\tType: " << elem.second.getType() << "\tValue: " << elem.second.getValueString() << "\tScope: " << elem.second.getScope() << std::endl;
-	}*/
+			std::cout << "Name: " << elem.first << "\tType: " << elem.second.getType() << "\tValue: " << elem.second.getValueString() << "\tScope: " << elem.second.getScope() << std::endl;
+		}*/
+	}
 }
